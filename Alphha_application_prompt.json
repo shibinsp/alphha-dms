@@ -1,0 +1,1821 @@
+{
+  "project_name": "Alphha DMS",
+  "project_description": "Enterprise-grade Government Document Management System with advanced compliance, security, and AI capabilities",
+  "project_type": "Government Enterprise Application",
+  "tech_stack": {
+    "frontend": {
+      "framework": "React 18+",
+      "state_management": "Redux Toolkit / Zustand",
+      "ui_library": "Ant Design Pro / Material-UI",
+      "styling": "TailwindCSS",
+      "charts": "Recharts / Apache ECharts",
+      "form_handling": "React Hook Form + Zod",
+      "routing": "React Router v6",
+      "http_client": "Axios / TanStack Query",
+      "pdf_viewer": "react-pdf / PDF.js",
+      "diff_viewer": "Monaco Editor (diff mode)",
+      "offline_support": "PWA with Service Workers"
+    },
+    "backend": {
+      "framework": "Python FastAPI",
+      "orm": "SQLAlchemy 2.0",
+      "authentication": "FastAPI-Users + JWT + OAuth2/OIDC",
+      "background_jobs": "Celery + Redis",
+      "search": "SQLite FTS5 (can upgrade to OpenSearch)",
+      "vector_db": "sqlite-vss (vector similarity)",
+      "ocr": "Tesseract / EasyOCR",
+      "file_storage": "Local filesystem (S3-compatible interface)",
+      "encryption": "cryptography library (AES-256)",
+      "hashing": "hashlib (SHA-256/512)"
+    },
+    "database": {
+      "primary": "SQLite",
+      "notes": "Production can migrate to PostgreSQL with pgvector"
+    }
+  },
+  "design_requirements": {
+    "theme": "Professional Government/Enterprise",
+    "color_palette": {
+      "primary": "#1E3A5F (Navy Blue)",
+      "secondary": "#2E7D32 (Government Green)",
+      "accent": "#B8860B (Gold)",
+      "background": "#F5F7FA",
+      "surface": "#FFFFFF",
+      "error": "#D32F2F",
+      "warning": "#FFA000",
+      "success": "#388E3C"
+    },
+    "typography": {
+      "primary_font": "Inter / Roboto",
+      "heading_font": "Poppins",
+      "monospace": "JetBrains Mono"
+    },
+    "ui_patterns": [
+      "Clean sidebar navigation with collapsible menu",
+      "Breadcrumb navigation",
+      "Card-based layouts",
+      "Data tables with sorting/filtering/pagination",
+      "Modal dialogs for forms",
+      "Toast notifications",
+      "Loading skeletons",
+      "Empty states with illustrations",
+      "Responsive design (desktop-first)"
+    ],
+    "accessibility": "WCAG 2.1 AA compliant"
+  },
+
+  "modules": [
+    {
+      "id": "M01",
+      "name": "Authentication & Authorization",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M01-F01",
+          "name": "User Authentication",
+          "requirements": [
+            "OAuth2/OIDC/SAML SSO integration",
+            "JWT token-based authentication",
+            "Multi-Factor Authentication (MFA) for admin roles",
+            "Secure session management with idle timeout",
+            "Password policy enforcement",
+            "Account lockout after failed attempts"
+          ]
+        },
+        {
+          "id": "M01-F02",
+          "name": "Role-Based Access Control (RBAC)",
+          "requirements": [
+            "Predefined roles: Super Admin, Admin, Legal, Compliance, Auditor, Manager, User, Viewer",
+            "Custom role creation with granular permissions",
+            "Permission categories: Documents, Workflows, Admin, Reports, Audit",
+            "Role inheritance and hierarchy"
+          ],
+          "permissions_matrix": {
+            "categories": [
+              "document.view", "document.download", "document.upload", "document.edit",
+              "document.delete", "document.share", "document.approve", "document.legal_hold",
+              "workflow.create", "workflow.approve", "workflow.manage",
+              "admin.users", "admin.roles", "admin.policies", "admin.tenants",
+              "reports.view", "reports.export",
+              "audit.view", "audit.export", "audit.verify",
+              "pii.unmask", "pii.export"
+            ]
+          }
+        },
+        {
+          "id": "M01-F03",
+          "name": "Attribute-Based Access Control (ABAC)",
+          "requirements": [
+            "Evaluate access based on user attributes (department, region, clearance)",
+            "Document classification levels (Public, Internal, Confidential, Restricted)",
+            "Context-aware access (time, location, device)",
+            "Policy engine for complex access rules"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "users",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "email", "type": "VARCHAR(255)", "unique": true},
+              {"name": "password_hash", "type": "VARCHAR(255)"},
+              {"name": "full_name", "type": "VARCHAR(255)"},
+              {"name": "department", "type": "VARCHAR(100)"},
+              {"name": "region", "type": "VARCHAR(100)"},
+              {"name": "clearance_level", "type": "VARCHAR(50)"},
+              {"name": "is_active", "type": "BOOLEAN", "default": true},
+              {"name": "mfa_enabled", "type": "BOOLEAN", "default": false},
+              {"name": "mfa_secret", "type": "VARCHAR(255)"},
+              {"name": "last_login", "type": "TIMESTAMP"},
+              {"name": "failed_attempts", "type": "INTEGER", "default": 0},
+              {"name": "locked_until", "type": "TIMESTAMP"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "updated_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "roles",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "description", "type": "TEXT"},
+              {"name": "permissions", "type": "JSON"},
+              {"name": "is_system_role", "type": "BOOLEAN", "default": false},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "user_roles",
+            "columns": [
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "role_id", "type": "UUID", "foreign_key": "roles.id"}
+            ]
+          },
+          {
+            "name": "sessions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "token_hash", "type": "VARCHAR(255)"},
+              {"name": "ip_address", "type": "VARCHAR(45)"},
+              {"name": "user_agent", "type": "TEXT"},
+              {"name": "expires_at", "type": "TIMESTAMP"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/auth/login", "description": "User login"},
+        {"method": "POST", "path": "/api/v1/auth/logout", "description": "User logout"},
+        {"method": "POST", "path": "/api/v1/auth/refresh", "description": "Refresh token"},
+        {"method": "POST", "path": "/api/v1/auth/mfa/setup", "description": "Setup MFA"},
+        {"method": "POST", "path": "/api/v1/auth/mfa/verify", "description": "Verify MFA"},
+        {"method": "GET", "path": "/api/v1/users", "description": "List users"},
+        {"method": "POST", "path": "/api/v1/users", "description": "Create user"},
+        {"method": "GET", "path": "/api/v1/users/{id}", "description": "Get user details"},
+        {"method": "PUT", "path": "/api/v1/users/{id}", "description": "Update user"},
+        {"method": "DELETE", "path": "/api/v1/users/{id}", "description": "Deactivate user"},
+        {"method": "GET", "path": "/api/v1/roles", "description": "List roles"},
+        {"method": "POST", "path": "/api/v1/roles", "description": "Create role"},
+        {"method": "PUT", "path": "/api/v1/roles/{id}", "description": "Update role"},
+        {"method": "POST", "path": "/api/v1/users/{id}/roles", "description": "Assign roles to user"}
+      ]
+    },
+
+    {
+      "id": "M02",
+      "name": "Document Management Core",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M02-F01",
+          "name": "Document Upload & Classification",
+          "requirements": [
+            "Support multiple formats: PDF, Word, Excel, Images, CSV",
+            "Document source classification: Customer, Vendor, Internal",
+            "Document type folders: Passport, Invoice, Contract, KYC, PO, etc.",
+            "Drag-and-drop upload interface",
+            "Bulk upload support",
+            "API upload with source type parameter",
+            "File validation (type, size, malware scan)",
+            "Preserve original file styling/format"
+          ]
+        },
+        {
+          "id": "M02-F02",
+          "name": "Customer Document Handling",
+          "requirements": [
+            "Enter/validate Customer ID against CRM",
+            "Auto-tag documents to customer record",
+            "Pull customer details from CRM (name, ID, contact)",
+            "Customer account page showing all linked documents",
+            "Document linking across customer records"
+          ]
+        },
+        {
+          "id": "M02-F03",
+          "name": "Vendor Document Handling",
+          "requirements": [
+            "Enter/validate Vendor ID against ERP/Master",
+            "Auto-tag documents to vendor record",
+            "Vendor account page showing all linked documents"
+          ]
+        },
+        {
+          "id": "M02-F04",
+          "name": "Internal Document Handling",
+          "requirements": [
+            "Department selection dropdown",
+            "Tag document to department",
+            "Department account page with grouped documents"
+          ]
+        },
+        {
+          "id": "M02-F05",
+          "name": "Document Overview Page",
+          "requirements": [
+            "Document preview/thumbnail",
+            "Metadata display (type, source, folder, tags)",
+            "Page count",
+            "Customer/Vendor/Department tags",
+            "Related documents section",
+            "Approval status indicator",
+            "Version history panel",
+            "Custom metadata fields (user-definable)",
+            "Edit metadata inline"
+          ]
+        },
+        {
+          "id": "M02-F06",
+          "name": "Dashboard & Listing",
+          "requirements": [
+            "Document grid/table view toggle",
+            "Dynamic column selection",
+            "System default + custom fields as columns",
+            "Advanced filtering and sorting",
+            "Saved filter presets",
+            "Pagination with configurable page size",
+            "Quick actions (view, download, share, delete)"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "documents",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "title", "type": "VARCHAR(500)"},
+              {"name": "file_name", "type": "VARCHAR(500)"},
+              {"name": "file_path", "type": "VARCHAR(1000)"},
+              {"name": "file_size", "type": "BIGINT"},
+              {"name": "mime_type", "type": "VARCHAR(100)"},
+              {"name": "page_count", "type": "INTEGER"},
+              {"name": "checksum_sha256", "type": "VARCHAR(64)"},
+              {"name": "source_type", "type": "ENUM('CUSTOMER', 'VENDOR', 'INTERNAL')"},
+              {"name": "customer_id", "type": "VARCHAR(100)", "nullable": true},
+              {"name": "vendor_id", "type": "VARCHAR(100)", "nullable": true},
+              {"name": "department_id", "type": "UUID", "foreign_key": "departments.id", "nullable": true},
+              {"name": "document_type_id", "type": "UUID", "foreign_key": "document_types.id"},
+              {"name": "folder_id", "type": "UUID", "foreign_key": "folders.id", "nullable": true},
+              {"name": "classification", "type": "ENUM('PUBLIC', 'INTERNAL', 'CONFIDENTIAL', 'RESTRICTED')", "default": "INTERNAL"},
+              {"name": "lifecycle_status", "type": "ENUM('DRAFT', 'REVIEW', 'APPROVED', 'ARCHIVED', 'DELETED')", "default": "DRAFT"},
+              {"name": "is_worm_locked", "type": "BOOLEAN", "default": false},
+              {"name": "retention_expiry", "type": "DATE", "nullable": true},
+              {"name": "legal_hold", "type": "BOOLEAN", "default": false},
+              {"name": "legal_hold_by", "type": "UUID", "foreign_key": "users.id", "nullable": true},
+              {"name": "legal_hold_at", "type": "TIMESTAMP", "nullable": true},
+              {"name": "current_version_id", "type": "UUID", "foreign_key": "document_versions.id", "nullable": true},
+              {"name": "ocr_text", "type": "TEXT", "nullable": true},
+              {"name": "ocr_status", "type": "ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')", "default": "PENDING"},
+              {"name": "custom_metadata", "type": "JSON", "default": "{}"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "updated_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "updated_at", "type": "TIMESTAMP"}
+            ],
+            "indexes": [
+              {"columns": ["tenant_id", "lifecycle_status"]},
+              {"columns": ["customer_id"]},
+              {"columns": ["vendor_id"]},
+              {"columns": ["document_type_id"]},
+              {"columns": ["created_at"]},
+              {"type": "FTS", "columns": ["title", "ocr_text"]}
+            ]
+          },
+          {
+            "name": "document_types",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "description", "type": "TEXT"},
+              {"name": "icon", "type": "VARCHAR(50)"},
+              {"name": "retention_days", "type": "INTEGER", "nullable": true},
+              {"name": "approval_flow_type", "type": "ENUM('AUTO', 'MANUAL', 'NONE')", "default": "NONE"},
+              {"name": "auto_approvers", "type": "JSON", "nullable": true},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "folders",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(255)"},
+              {"name": "parent_id", "type": "UUID", "foreign_key": "folders.id", "nullable": true},
+              {"name": "path", "type": "VARCHAR(1000)"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "departments",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "code", "type": "VARCHAR(20)"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "custom_fields",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "field_key", "type": "VARCHAR(100)"},
+              {"name": "field_type", "type": "ENUM('TEXT', 'NUMBER', 'DATE', 'SELECT', 'MULTI_SELECT', 'BOOLEAN')"},
+              {"name": "options", "type": "JSON", "nullable": true},
+              {"name": "required", "type": "BOOLEAN", "default": false},
+              {"name": "document_type_id", "type": "UUID", "foreign_key": "document_types.id", "nullable": true},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/documents", "description": "List documents with filters"},
+        {"method": "POST", "path": "/api/v1/documents", "description": "Upload document"},
+        {"method": "GET", "path": "/api/v1/documents/{id}", "description": "Get document details"},
+        {"method": "PUT", "path": "/api/v1/documents/{id}", "description": "Update document metadata"},
+        {"method": "DELETE", "path": "/api/v1/documents/{id}", "description": "Delete document"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/download", "description": "Download document"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/preview", "description": "Get document preview"},
+        {"method": "GET", "path": "/api/v1/document-types", "description": "List document types"},
+        {"method": "POST", "path": "/api/v1/document-types", "description": "Create document type"},
+        {"method": "GET", "path": "/api/v1/folders", "description": "List folders"},
+        {"method": "POST", "path": "/api/v1/folders", "description": "Create folder"},
+        {"method": "GET", "path": "/api/v1/departments", "description": "List departments"},
+        {"method": "GET", "path": "/api/v1/customers/{id}/documents", "description": "Get customer documents"},
+        {"method": "GET", "path": "/api/v1/vendors/{id}/documents", "description": "Get vendor documents"}
+      ]
+    },
+
+    {
+      "id": "M03",
+      "name": "Document Versioning",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M03-F01",
+          "name": "Version Creation",
+          "requirements": [
+            "Auto-create new version on file re-upload",
+            "Auto-create new version on metadata update",
+            "Version numbering: 1, 2, 3... (or 1.0, 1.1, 2.0)",
+            "Optional version reason/comment",
+            "Preserve original file format and styling"
+          ]
+        },
+        {
+          "id": "M03-F02",
+          "name": "Version History",
+          "requirements": [
+            "Display version list with: Version #, Timestamp, Updated By, Reason",
+            "Show what changed between versions",
+            "Diff viewer integration (Monaco diff viewer)",
+            "Side-by-side comparison mode",
+            "All previous versions remain read-only"
+          ]
+        },
+        {
+          "id": "M03-F03",
+          "name": "Version Access",
+          "requirements": [
+            "View any past version",
+            "Download any past version",
+            "Restore: select older version creates new version (no overwrite)",
+            "Version-specific sharing"
+          ]
+        },
+        {
+          "id": "M03-F04",
+          "name": "Check-In/Check-Out",
+          "requirements": [
+            "Lock document for editing (check-out)",
+            "Prevent concurrent version creation during review",
+            "Release lock on approval/rejection (check-in)",
+            "Display lock status and holder"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "document_versions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "version_number", "type": "INTEGER"},
+              {"name": "file_path", "type": "VARCHAR(1000)"},
+              {"name": "file_size", "type": "BIGINT"},
+              {"name": "checksum_sha256", "type": "VARCHAR(64)"},
+              {"name": "metadata_snapshot", "type": "JSON"},
+              {"name": "change_reason", "type": "TEXT", "nullable": true},
+              {"name": "is_current", "type": "BOOLEAN", "default": false},
+              {"name": "created_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "document_locks",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id", "unique": true},
+              {"name": "locked_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "locked_at", "type": "TIMESTAMP"},
+              {"name": "reason", "type": "TEXT", "nullable": true}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/documents/{id}/versions", "description": "List document versions"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/versions", "description": "Create new version"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/versions/{versionId}", "description": "Get specific version"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/versions/{versionId}/download", "description": "Download version"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/versions/{versionId}/restore", "description": "Restore version"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/versions/compare", "description": "Compare two versions"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/checkout", "description": "Check out document"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/checkin", "description": "Check in document"}
+      ]
+    },
+
+    {
+      "id": "M04",
+      "name": "Document Lifecycle Management",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M04-F01",
+          "name": "Lifecycle States",
+          "requirements": [
+            "States: Draft → Review → Approved → Archived",
+            "Clear status display in UI",
+            "Status badge colors",
+            "Lifecycle timeline visualization"
+          ]
+        },
+        {
+          "id": "M04-F02",
+          "name": "State Transitions",
+          "requirements": [
+            "Only authorized users can change status",
+            "Log every transition with user + timestamp",
+            "Send back to Draft/Revision creates new version",
+            "Deletion is restricted/disabled (soft delete only)",
+            "Transition validation rules"
+          ]
+        },
+        {
+          "id": "M04-F03",
+          "name": "Auto-Archive",
+          "requirements": [
+            "Configure inactivity period per document type",
+            "Auto-archive after defined inactive time",
+            "Scheduler job for auto-archive",
+            "Notification before auto-archive"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "lifecycle_transitions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "from_status", "type": "VARCHAR(50)"},
+              {"name": "to_status", "type": "VARCHAR(50)"},
+              {"name": "transitioned_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "reason", "type": "TEXT", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/documents/{id}/transition", "description": "Change document status"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/lifecycle", "description": "Get lifecycle history"}
+      ]
+    },
+
+    {
+      "id": "M05",
+      "name": "Approval Workflow",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M05-F01",
+          "name": "Workflow Configuration",
+          "requirements": [
+            "Auto Approval Flow: Predefined approver list triggered automatically",
+            "Manual Approval Flow: User adds individual/group approvers",
+            "Sequential Flow: Approvers receive requests in order",
+            "Parallel Flow: All approvers receive at same time",
+            "Approver can be: Single User or Group Email"
+          ]
+        },
+        {
+          "id": "M05-F02",
+          "name": "Approval Actions",
+          "requirements": [
+            "Approve with comments",
+            "Reject with reason (sends back to draft)",
+            "Request changes",
+            "Delegate to another user",
+            "Email/notification on pending approval"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "approval_workflows",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(255)"},
+              {"name": "flow_type", "type": "ENUM('SEQUENTIAL', 'PARALLEL')"},
+              {"name": "document_type_id", "type": "UUID", "foreign_key": "document_types.id", "nullable": true},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "approval_steps",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "workflow_id", "type": "UUID", "foreign_key": "approval_workflows.id"},
+              {"name": "step_order", "type": "INTEGER"},
+              {"name": "approver_type", "type": "ENUM('USER', 'GROUP', 'ROLE')"},
+              {"name": "approver_id", "type": "UUID"},
+              {"name": "required", "type": "BOOLEAN", "default": true}
+            ]
+          },
+          {
+            "name": "approval_requests",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "workflow_id", "type": "UUID", "foreign_key": "approval_workflows.id"},
+              {"name": "current_step", "type": "INTEGER"},
+              {"name": "status", "type": "ENUM('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')"},
+              {"name": "initiated_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "completed_at", "type": "TIMESTAMP", "nullable": true}
+            ]
+          },
+          {
+            "name": "approval_actions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "request_id", "type": "UUID", "foreign_key": "approval_requests.id"},
+              {"name": "step_id", "type": "UUID", "foreign_key": "approval_steps.id"},
+              {"name": "action", "type": "ENUM('APPROVED', 'REJECTED', 'DELEGATED')"},
+              {"name": "comments", "type": "TEXT", "nullable": true},
+              {"name": "acted_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "delegated_to", "type": "UUID", "foreign_key": "users.id", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/workflows", "description": "List workflows"},
+        {"method": "POST", "path": "/api/v1/workflows", "description": "Create workflow"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/submit-approval", "description": "Submit for approval"},
+        {"method": "POST", "path": "/api/v1/approval-requests/{id}/approve", "description": "Approve request"},
+        {"method": "POST", "path": "/api/v1/approval-requests/{id}/reject", "description": "Reject request"},
+        {"method": "GET", "path": "/api/v1/approval-requests/pending", "description": "Get pending approvals for user"}
+      ]
+    },
+
+    {
+      "id": "M06",
+      "name": "Records Management (WORM)",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M06-F01",
+          "name": "WORM Lock",
+          "requirements": [
+            "Approved documents marked as 'Record' and locked",
+            "Generate and store checksum for integrity verification",
+            "Records remain read-only until retention expiry",
+            "Display record status + expiry date in UI"
+          ]
+        },
+        {
+          "id": "M06-F02",
+          "name": "Retention Management",
+          "requirements": [
+            "Fixed retention expiry based on document type",
+            "Email/SMS alert before expiry (30 days prior)",
+            "After expiry: mark for purge/archive (no auto-delete)",
+            "Generate report for documents nearing expiry"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "worm_records",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id", "unique": true},
+              {"name": "version_id", "type": "UUID", "foreign_key": "document_versions.id"},
+              {"name": "locked_at", "type": "TIMESTAMP"},
+              {"name": "retention_start", "type": "DATE"},
+              {"name": "retention_end", "type": "DATE"},
+              {"name": "checksum", "type": "VARCHAR(64)"},
+              {"name": "status", "type": "ENUM('ACTIVE', 'EXPIRED', 'ARCHIVED', 'PURGED')"},
+              {"name": "expiry_notified", "type": "BOOLEAN", "default": false}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/documents/{id}/lock-worm", "description": "Lock as WORM record"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/verify-integrity", "description": "Verify document integrity"},
+        {"method": "GET", "path": "/api/v1/records/expiring", "description": "Get expiring records report"}
+      ]
+    },
+
+    {
+      "id": "M07",
+      "name": "Retention & Policy Engine",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M07-F01",
+          "name": "Policy Configuration",
+          "requirements": [
+            "Central console for retention/archival/purge rules",
+            "Rules by document type, tenant, region",
+            "Legal hold override capability",
+            "Policy versioning"
+          ]
+        },
+        {
+          "id": "M07-F02",
+          "name": "Policy Execution",
+          "requirements": [
+            "Daily scheduler for archive/purge",
+            "Log all archive/purge actions",
+            "Rule changes apply immediately across modules",
+            "Skip documents with legal hold"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "retention_policies",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(255)"},
+              {"name": "document_type_id", "type": "UUID", "foreign_key": "document_types.id", "nullable": true},
+              {"name": "retention_days", "type": "INTEGER"},
+              {"name": "action_on_expiry", "type": "ENUM('ARCHIVE', 'PURGE', 'NOTIFY')"},
+              {"name": "notify_days_before", "type": "INTEGER", "default": 30},
+              {"name": "is_active", "type": "BOOLEAN", "default": true},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "updated_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "policy_execution_logs",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "policy_id", "type": "UUID", "foreign_key": "retention_policies.id"},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "action", "type": "VARCHAR(50)"},
+              {"name": "status", "type": "ENUM('SUCCESS', 'FAILED', 'SKIPPED')"},
+              {"name": "reason", "type": "TEXT", "nullable": true},
+              {"name": "executed_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/policies", "description": "List retention policies"},
+        {"method": "POST", "path": "/api/v1/policies", "description": "Create retention policy"},
+        {"method": "PUT", "path": "/api/v1/policies/{id}", "description": "Update policy"},
+        {"method": "GET", "path": "/api/v1/policies/execution-logs", "description": "Get execution logs"}
+      ]
+    },
+
+    {
+      "id": "M08",
+      "name": "Legal Hold & E-Discovery",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M08-F01",
+          "name": "Legal Hold Management",
+          "requirements": [
+            "Apply legal hold on document (prevent delete/archive)",
+            "Only authorized users can apply/release hold",
+            "Clear UI indicator for documents on legal hold",
+            "Track timestamp + user for hold/release",
+            "List all legal-hold documents with status"
+          ]
+        },
+        {
+          "id": "M08-F02",
+          "name": "Evidence Export",
+          "requirements": [
+            "Export ZIP with: frozen version, OCR text, audit trail",
+            "PII masking for unauthorized users",
+            "Include manifest and policies snapshot",
+            "Log all export actions"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "legal_holds",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "case_reference", "type": "VARCHAR(255)"},
+              {"name": "reason", "type": "TEXT"},
+              {"name": "applied_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "applied_at", "type": "TIMESTAMP"},
+              {"name": "released_by", "type": "UUID", "foreign_key": "users.id", "nullable": true},
+              {"name": "released_at", "type": "TIMESTAMP", "nullable": true},
+              {"name": "status", "type": "ENUM('ACTIVE', 'RELEASED')"}
+            ]
+          },
+          {
+            "name": "evidence_exports",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "legal_hold_id", "type": "UUID", "foreign_key": "legal_holds.id"},
+              {"name": "exported_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "file_path", "type": "VARCHAR(1000)"},
+              {"name": "manifest", "type": "JSON"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/documents/{id}/legal-hold", "description": "Apply legal hold"},
+        {"method": "DELETE", "path": "/api/v1/documents/{id}/legal-hold", "description": "Release legal hold"},
+        {"method": "GET", "path": "/api/v1/legal-holds", "description": "List all legal holds"},
+        {"method": "POST", "path": "/api/v1/legal-holds/{id}/export", "description": "Export evidence bundle"}
+      ]
+    },
+
+    {
+      "id": "M09",
+      "name": "DLP & PII Detection",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M09-F01",
+          "name": "PII Detection",
+          "requirements": [
+            "Detect PII patterns: PAN, Aadhaar, IBAN, Passport, Email, Phone, Credit Card",
+            "Detection on OCR-extracted text",
+            "Region-aware patterns (configurable per tenant)",
+            "Admin UI to enable/disable patterns",
+            "Pattern Master: regex + country + validator"
+          ]
+        },
+        {
+          "id": "M09-F02",
+          "name": "PII Actions",
+          "requirements": [
+            "Mask: Display as ****{last4}",
+            "Redact: Remove PII in exports ([REDACTED])",
+            "Encrypt-at-Rest: AES-256 encryption",
+            "Access Control: Only PII_UNMASK role sees clear PII"
+          ]
+        },
+        {
+          "id": "M09-F03",
+          "name": "Lifecycle Enforcement",
+          "requirements": [
+            "Apply PII actions at: ingest → store → view → export",
+            "Consistent handling across lifecycle",
+            "Watermark on sensitive docs for unauthorized users"
+          ]
+        },
+        {
+          "id": "M09-F04",
+          "name": "PII Audit",
+          "requirements": [
+            "Log all mask/unmask/export events",
+            "Track user, time, field, action",
+            "Retain logs for compliance (7+ years)"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "pii_patterns",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "pattern_type", "type": "VARCHAR(50)"},
+              {"name": "regex", "type": "TEXT"},
+              {"name": "country_code", "type": "VARCHAR(10)", "nullable": true},
+              {"name": "validator", "type": "VARCHAR(50)", "nullable": true},
+              {"name": "mask_format", "type": "VARCHAR(50)", "default": "****{last4}"},
+              {"name": "is_active", "type": "BOOLEAN", "default": true},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "pii_policies",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "actions", "type": "JSON"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "document_pii_fields",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "pattern_id", "type": "UUID", "foreign_key": "pii_patterns.id"},
+              {"name": "field_value_encrypted", "type": "TEXT"},
+              {"name": "field_location", "type": "JSON"},
+              {"name": "validation_status", "type": "ENUM('VALID', 'INVALID', 'UNCHECKED')"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "pii_access_logs",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "pii_field_id", "type": "UUID", "foreign_key": "document_pii_fields.id"},
+              {"name": "action", "type": "ENUM('VIEW_MASKED', 'VIEW_UNMASKED', 'EXPORT_MASKED', 'EXPORT_UNMASKED')"},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "ip_address", "type": "VARCHAR(45)"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/pii/patterns", "description": "List PII patterns"},
+        {"method": "POST", "path": "/api/v1/pii/patterns", "description": "Create PII pattern"},
+        {"method": "PUT", "path": "/api/v1/pii/patterns/{id}", "description": "Update pattern"},
+        {"method": "GET", "path": "/api/v1/pii/policies", "description": "List PII policies"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/pii", "description": "Get document PII fields"},
+        {"method": "GET", "path": "/api/v1/pii/access-logs", "description": "Get PII access logs"}
+      ]
+    },
+
+    {
+      "id": "M10",
+      "name": "Document Sharing & Permissions",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M10-F01",
+          "name": "Permission Levels",
+          "requirements": [
+            "Owner: Full control (edit, share, move, delete, change permissions)",
+            "Editor: Can edit, annotate, update metadata",
+            "Commenter: Can add comments only",
+            "Approver: Can approve/reject",
+            "Viewer: View only",
+            "Downloader: View + download",
+            "No Access: Default restriction"
+          ]
+        },
+        {
+          "id": "M10-F02",
+          "name": "Sharing Features",
+          "requirements": [
+            "Share with individual users",
+            "Share with groups",
+            "External sharing with expiry",
+            "Revoke access anytime",
+            "Share notifications"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "document_permissions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "grantee_type", "type": "ENUM('USER', 'GROUP', 'ROLE')"},
+              {"name": "grantee_id", "type": "UUID"},
+              {"name": "permission_level", "type": "ENUM('OWNER', 'EDITOR', 'COMMENTER', 'APPROVER', 'VIEWER', 'DOWNLOADER')"},
+              {"name": "expires_at", "type": "TIMESTAMP", "nullable": true},
+              {"name": "granted_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "share_links",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "token", "type": "VARCHAR(255)", "unique": true},
+              {"name": "permission_level", "type": "VARCHAR(50)"},
+              {"name": "password_hash", "type": "VARCHAR(255)", "nullable": true},
+              {"name": "expires_at", "type": "TIMESTAMP", "nullable": true},
+              {"name": "access_count", "type": "INTEGER", "default": 0},
+              {"name": "max_access_count", "type": "INTEGER", "nullable": true},
+              {"name": "created_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/documents/{id}/permissions", "description": "Get document permissions"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/share", "description": "Share document"},
+        {"method": "DELETE", "path": "/api/v1/documents/{id}/share/{permissionId}", "description": "Revoke access"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/share-link", "description": "Create share link"},
+        {"method": "GET", "path": "/api/v1/shared/{token}", "description": "Access shared document"}
+      ]
+    },
+
+    {
+      "id": "M11",
+      "name": "Taxonomy & Auto-Tagging",
+      "priority": "P2 - Medium",
+      "features": [
+        {
+          "id": "M11-F01",
+          "name": "Tag Management",
+          "requirements": [
+            "Controlled tag vocabulary (central list)",
+            "Admin/Data Steward can approve/modify tags",
+            "Duplicate tag prevention",
+            "Tag categories/hierarchies"
+          ]
+        },
+        {
+          "id": "M11-F02",
+          "name": "Auto-Tagging",
+          "requirements": [
+            "Extract keywords from OCR text",
+            "NER-based entity extraction",
+            "Suggest tags for approval in review queue",
+            "Approved tags become searchable"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "tags",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(100)"},
+              {"name": "category", "type": "VARCHAR(50)", "nullable": true},
+              {"name": "parent_id", "type": "UUID", "foreign_key": "tags.id", "nullable": true},
+              {"name": "is_approved", "type": "BOOLEAN", "default": true},
+              {"name": "usage_count", "type": "INTEGER", "default": 0},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "document_tags",
+            "columns": [
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "tag_id", "type": "UUID", "foreign_key": "tags.id"},
+              {"name": "confidence", "type": "FLOAT", "nullable": true},
+              {"name": "source", "type": "ENUM('MANUAL', 'AUTO', 'NER')"},
+              {"name": "status", "type": "ENUM('PENDING', 'APPROVED', 'REJECTED')"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "tag_suggestions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "suggested_tag", "type": "VARCHAR(100)"},
+              {"name": "confidence", "type": "FLOAT"},
+              {"name": "status", "type": "ENUM('PENDING', 'APPROVED', 'REJECTED')"},
+              {"name": "reviewed_by", "type": "UUID", "foreign_key": "users.id", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/tags", "description": "List tags"},
+        {"method": "POST", "path": "/api/v1/tags", "description": "Create tag"},
+        {"method": "GET", "path": "/api/v1/documents/{id}/tags", "description": "Get document tags"},
+        {"method": "POST", "path": "/api/v1/documents/{id}/tags", "description": "Add tag to document"},
+        {"method": "GET", "path": "/api/v1/tag-suggestions/pending", "description": "Get pending tag suggestions"},
+        {"method": "POST", "path": "/api/v1/tag-suggestions/{id}/approve", "description": "Approve tag suggestion"}
+      ]
+    },
+
+    {
+      "id": "M12",
+      "name": "Immutable Audit Ledger",
+      "priority": "P0 - Critical",
+      "features": [
+        {
+          "id": "M12-F01",
+          "name": "Audit Logging",
+          "requirements": [
+            "Log every action with cryptographic hash",
+            "Chain events (modifying one breaks integrity)",
+            "Store: User ID, Document ID, Action, Timestamp, IP, Device, Old/New Values",
+            "Append-only storage"
+          ]
+        },
+        {
+          "id": "M12-F02",
+          "name": "Integrity Verification",
+          "requirements": [
+            "Daily Merkle root generation",
+            "Verification check to detect tampering",
+            "Store verification results",
+            "Alert on integrity failure"
+          ]
+        },
+        {
+          "id": "M12-F03",
+          "name": "Audit Export",
+          "requirements": [
+            "Export logs for date range",
+            "Only privileged roles can view/verify/export",
+            "Include verification proof in export"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "audit_events",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "sequence_number", "type": "BIGINT", "auto_increment": true},
+              {"name": "event_type", "type": "VARCHAR(100)"},
+              {"name": "entity_type", "type": "VARCHAR(50)"},
+              {"name": "entity_id", "type": "UUID"},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "ip_address", "type": "VARCHAR(45)"},
+              {"name": "user_agent", "type": "TEXT"},
+              {"name": "old_values", "type": "JSON", "nullable": true},
+              {"name": "new_values", "type": "JSON", "nullable": true},
+              {"name": "metadata", "type": "JSON", "nullable": true},
+              {"name": "event_hash", "type": "VARCHAR(64)"},
+              {"name": "previous_hash", "type": "VARCHAR(64)"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "audit_roots",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "date", "type": "DATE"},
+              {"name": "merkle_root", "type": "VARCHAR(64)"},
+              {"name": "event_count", "type": "INTEGER"},
+              {"name": "first_sequence", "type": "BIGINT"},
+              {"name": "last_sequence", "type": "BIGINT"},
+              {"name": "tenant_id", "type": "UUID", "foreign_key": "tenants.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "audit_verifications",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "verified_by", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "date_range_start", "type": "DATE"},
+              {"name": "date_range_end", "type": "DATE"},
+              {"name": "result", "type": "ENUM('PASSED', 'FAILED')"},
+              {"name": "details", "type": "JSON"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/audit/events", "description": "Get audit events"},
+        {"method": "GET", "path": "/api/v1/audit/events/{entityType}/{entityId}", "description": "Get entity audit trail"},
+        {"method": "POST", "path": "/api/v1/audit/verify", "description": "Verify audit integrity"},
+        {"method": "GET", "path": "/api/v1/audit/export", "description": "Export audit logs"},
+        {"method": "GET", "path": "/api/v1/audit/roots", "description": "Get Merkle roots"}
+      ]
+    },
+
+    {
+      "id": "M13",
+      "name": "Search & Semantic Retrieval",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M13-F01",
+          "name": "Hybrid Search",
+          "requirements": [
+            "Keyword search (full-text)",
+            "Semantic/vector search",
+            "Combined ranking (keyword + semantic)",
+            "Bilingual support (Arabic + English)",
+            "RBAC-aware results filtering"
+          ]
+        },
+        {
+          "id": "M13-F02",
+          "name": "Search Features",
+          "requirements": [
+            "Search within document content (OCR text)",
+            "Search metadata fields",
+            "Filter by: date, type, status, tags, folder",
+            "Saved searches",
+            "Search suggestions/autocomplete"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "document_embeddings",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "chunk_index", "type": "INTEGER"},
+              {"name": "chunk_text", "type": "TEXT"},
+              {"name": "embedding", "type": "BLOB"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "saved_searches",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(255)"},
+              {"name": "query", "type": "TEXT"},
+              {"name": "filters", "type": "JSON"},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/search", "description": "Search documents"},
+        {"method": "GET", "path": "/api/v1/search/semantic", "description": "Semantic search"},
+        {"method": "GET", "path": "/api/v1/search/suggestions", "description": "Get search suggestions"},
+        {"method": "POST", "path": "/api/v1/search/saved", "description": "Save search"},
+        {"method": "GET", "path": "/api/v1/search/saved", "description": "List saved searches"}
+      ]
+    },
+
+    {
+      "id": "M14",
+      "name": "AI-Augmented Q&A (Chatbot)",
+      "priority": "P2 - Medium",
+      "features": [
+        {
+          "id": "M14-F01",
+          "name": "Natural Language Q&A",
+          "requirements": [
+            "Ask questions in natural language",
+            "Retrieve relevant text using hybrid search",
+            "LLM-generated answers with citations",
+            "Page/section references in answers",
+            "RBAC-aware responses (only authorized content)"
+          ]
+        },
+        {
+          "id": "M14-F02",
+          "name": "Chat Interface",
+          "requirements": [
+            "Chat history per user",
+            "Multi-turn conversations",
+            "Feedback mechanism (thumbs up/down)",
+            "Query logging for analytics"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "chat_sessions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "title", "type": "VARCHAR(255)"},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "updated_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "chat_messages",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "session_id", "type": "UUID", "foreign_key": "chat_sessions.id"},
+              {"name": "role", "type": "ENUM('USER', 'ASSISTANT')"},
+              {"name": "content", "type": "TEXT"},
+              {"name": "citations", "type": "JSON", "nullable": true},
+              {"name": "feedback", "type": "ENUM('POSITIVE', 'NEGATIVE')", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/chat", "description": "Send chat message"},
+        {"method": "GET", "path": "/api/v1/chat/sessions", "description": "List chat sessions"},
+        {"method": "GET", "path": "/api/v1/chat/sessions/{id}", "description": "Get chat history"},
+        {"method": "POST", "path": "/api/v1/chat/messages/{id}/feedback", "description": "Submit feedback"}
+      ]
+    },
+
+    {
+      "id": "M15",
+      "name": "Governance & Analytics Dashboard",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M15-F01",
+          "name": "Document Analytics",
+          "requirements": [
+            "Documents processed daily/weekly/monthly",
+            "Document type distribution",
+            "Status distribution (Draft, Approved, etc.)",
+            "Storage usage trends"
+          ]
+        },
+        {
+          "id": "M15-F02",
+          "name": "OCR Analytics",
+          "requirements": [
+            "OCR accuracy trend",
+            "Processing time per document type",
+            "Error rate tracking"
+          ]
+        },
+        {
+          "id": "M15-F03",
+          "name": "Workflow Analytics",
+          "requirements": [
+            "Approval turnaround time",
+            "Pending approvals count",
+            "Bottleneck identification"
+          ]
+        },
+        {
+          "id": "M15-F04",
+          "name": "Compliance Metrics",
+          "requirements": [
+            "Retention policy compliance",
+            "Documents nearing expiry",
+            "Legal hold count",
+            "PII detection statistics"
+          ]
+        },
+        {
+          "id": "M15-F05",
+          "name": "Anomaly Alerts",
+          "requirements": [
+            "Low OCR accuracy alerts",
+            "Overdue retention alerts",
+            "Unusual access patterns",
+            "High-volume exports"
+          ]
+        }
+      ],
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/analytics/documents", "description": "Document analytics"},
+        {"method": "GET", "path": "/api/v1/analytics/ocr", "description": "OCR analytics"},
+        {"method": "GET", "path": "/api/v1/analytics/workflows", "description": "Workflow analytics"},
+        {"method": "GET", "path": "/api/v1/analytics/compliance", "description": "Compliance metrics"},
+        {"method": "GET", "path": "/api/v1/analytics/alerts", "description": "Get active alerts"}
+      ]
+    },
+
+    {
+      "id": "M16",
+      "name": "Bank Statement Intelligence (BSI)",
+      "priority": "P2 - Medium",
+      "features": [
+        {
+          "id": "M16-F01",
+          "name": "Statement Parsing",
+          "requirements": [
+            "Parse bank statements (PDF/Images/CSV)",
+            "Extract transactions into structured format",
+            "Normalize transaction data",
+            "Preserve original statement unchanged"
+          ]
+        },
+        {
+          "id": "M16-F02",
+          "name": "Transaction Analysis",
+          "requirements": [
+            "Classify transactions (salary, fees, transfer, utility)",
+            "Detect recurring salary + compute monthly income",
+            "Flag anomalies (high withdrawals, irregularity)",
+            "Month-wise debit/credit summary"
+          ]
+        },
+        {
+          "id": "M16-F03",
+          "name": "Risk Assessment",
+          "requirements": [
+            "Compute RAG score based on rules",
+            "Summarize insights for underwriting",
+            "Q&A on parsed data",
+            "Export (CSV/JSON)"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "bank_statements",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "document_id", "type": "UUID", "foreign_key": "documents.id"},
+              {"name": "bank_name", "type": "VARCHAR(255)"},
+              {"name": "account_number", "type": "VARCHAR(50)"},
+              {"name": "account_holder", "type": "VARCHAR(255)"},
+              {"name": "statement_period_start", "type": "DATE"},
+              {"name": "statement_period_end", "type": "DATE"},
+              {"name": "currency", "type": "VARCHAR(10)"},
+              {"name": "opening_balance", "type": "DECIMAL(15,2)"},
+              {"name": "closing_balance", "type": "DECIMAL(15,2)"},
+              {"name": "rag_score", "type": "ENUM('RED', 'AMBER', 'GREEN')", "nullable": true},
+              {"name": "risk_summary", "type": "JSON", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "bank_transactions",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "statement_id", "type": "UUID", "foreign_key": "bank_statements.id"},
+              {"name": "transaction_date", "type": "DATE"},
+              {"name": "description", "type": "TEXT"},
+              {"name": "debit_amount", "type": "DECIMAL(15,2)", "nullable": true},
+              {"name": "credit_amount", "type": "DECIMAL(15,2)", "nullable": true},
+              {"name": "balance", "type": "DECIMAL(15,2)"},
+              {"name": "category", "type": "VARCHAR(50)", "nullable": true},
+              {"name": "is_recurring", "type": "BOOLEAN", "default": false},
+              {"name": "is_salary", "type": "BOOLEAN", "default": false},
+              {"name": "is_anomaly", "type": "BOOLEAN", "default": false},
+              {"name": "anomaly_reason", "type": "TEXT", "nullable": true}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/bsi/parse", "description": "Parse bank statement"},
+        {"method": "GET", "path": "/api/v1/bsi/statements/{id}", "description": "Get statement details"},
+        {"method": "GET", "path": "/api/v1/bsi/statements/{id}/transactions", "description": "Get transactions"},
+        {"method": "GET", "path": "/api/v1/bsi/statements/{id}/summary", "description": "Get summary"},
+        {"method": "GET", "path": "/api/v1/bsi/statements/{id}/export", "description": "Export data"}
+      ]
+    },
+
+    {
+      "id": "M17",
+      "name": "Offline/Edge Capture & Sync",
+      "priority": "P3 - Low",
+      "features": [
+        {
+          "id": "M17-F01",
+          "name": "Offline Capture",
+          "requirements": [
+            "PWA installable application",
+            "Capture documents offline",
+            "Local OCR processing",
+            "Local database for pending items"
+          ]
+        },
+        {
+          "id": "M17-F02",
+          "name": "Sync Management",
+          "requirements": [
+            "Auto-sync when online",
+            "Retry with exponential backoff",
+            "Track status: Pending/Synced/Failed",
+            "Branch identity validation",
+            "Conflict resolution (create new version)"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "sync_queue",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "local_document_id", "type": "VARCHAR(100)"},
+              {"name": "branch_id", "type": "VARCHAR(100)"},
+              {"name": "status", "type": "ENUM('PENDING', 'SYNCING', 'SYNCED', 'FAILED')"},
+              {"name": "retry_count", "type": "INTEGER", "default": 0},
+              {"name": "last_error", "type": "TEXT", "nullable": true},
+              {"name": "synced_document_id", "type": "UUID", "foreign_key": "documents.id", "nullable": true},
+              {"name": "created_at", "type": "TIMESTAMP"},
+              {"name": "synced_at", "type": "TIMESTAMP", "nullable": true}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "POST", "path": "/api/v1/sync/upload", "description": "Upload synced document"},
+        {"method": "GET", "path": "/api/v1/sync/status", "description": "Get sync status"},
+        {"method": "POST", "path": "/api/v1/sync/validate-branch", "description": "Validate branch identity"}
+      ]
+    },
+
+    {
+      "id": "M18",
+      "name": "Multi-Tenancy & Deployment",
+      "priority": "P1 - High",
+      "features": [
+        {
+          "id": "M18-F01",
+          "name": "Tenant Management",
+          "requirements": [
+            "Tenant isolation (data separation)",
+            "Tenant-specific configuration",
+            "Tenant-scoped users, roles, policies",
+            "Tenant branding (logo, colors)"
+          ]
+        },
+        {
+          "id": "M18-F02",
+          "name": "Deployment Options",
+          "requirements": [
+            "Cloud deployment (AWS/Azure/GCP)",
+            "On-premise deployment",
+            "Docker containerization",
+            "License key generation"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "tenants",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "name", "type": "VARCHAR(255)"},
+              {"name": "subdomain", "type": "VARCHAR(100)", "unique": true},
+              {"name": "logo_url", "type": "VARCHAR(500)", "nullable": true},
+              {"name": "primary_color", "type": "VARCHAR(7)", "nullable": true},
+              {"name": "config", "type": "JSON", "default": "{}"},
+              {"name": "license_key", "type": "VARCHAR(255)"},
+              {"name": "license_expires", "type": "DATE"},
+              {"name": "is_active", "type": "BOOLEAN", "default": true},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/tenants", "description": "List tenants (super admin)"},
+        {"method": "POST", "path": "/api/v1/tenants", "description": "Create tenant"},
+        {"method": "GET", "path": "/api/v1/tenants/{id}", "description": "Get tenant details"},
+        {"method": "PUT", "path": "/api/v1/tenants/{id}", "description": "Update tenant"},
+        {"method": "GET", "path": "/api/v1/tenants/current", "description": "Get current tenant config"}
+      ]
+    },
+
+    {
+      "id": "M19",
+      "name": "Notifications & Alerts",
+      "priority": "P2 - Medium",
+      "features": [
+        {
+          "id": "M19-F01",
+          "name": "Notification Types",
+          "requirements": [
+            "In-app notifications",
+            "Email notifications",
+            "SMS notifications (optional)",
+            "Push notifications (PWA)"
+          ]
+        },
+        {
+          "id": "M19-F02",
+          "name": "Notification Events",
+          "requirements": [
+            "Document shared with you",
+            "Approval pending",
+            "Approval completed/rejected",
+            "Document comment added",
+            "Retention expiry approaching",
+            "Legal hold applied/released",
+            "System alerts"
+          ]
+        }
+      ],
+      "database_schema": {
+        "tables": [
+          {
+            "name": "notifications",
+            "columns": [
+              {"name": "id", "type": "UUID", "primary": true},
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "type", "type": "VARCHAR(50)"},
+              {"name": "title", "type": "VARCHAR(255)"},
+              {"name": "message", "type": "TEXT"},
+              {"name": "link", "type": "VARCHAR(500)", "nullable": true},
+              {"name": "is_read", "type": "BOOLEAN", "default": false},
+              {"name": "created_at", "type": "TIMESTAMP"}
+            ]
+          },
+          {
+            "name": "notification_preferences",
+            "columns": [
+              {"name": "user_id", "type": "UUID", "foreign_key": "users.id"},
+              {"name": "notification_type", "type": "VARCHAR(50)"},
+              {"name": "email_enabled", "type": "BOOLEAN", "default": true},
+              {"name": "push_enabled", "type": "BOOLEAN", "default": true}
+            ]
+          }
+        ]
+      },
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/notifications", "description": "Get user notifications"},
+        {"method": "PUT", "path": "/api/v1/notifications/{id}/read", "description": "Mark as read"},
+        {"method": "PUT", "path": "/api/v1/notifications/read-all", "description": "Mark all as read"},
+        {"method": "GET", "path": "/api/v1/notifications/preferences", "description": "Get preferences"},
+        {"method": "PUT", "path": "/api/v1/notifications/preferences", "description": "Update preferences"}
+      ]
+    }
+  ],
+
+  "security_requirements": {
+    "transport": {
+      "tls_version": "TLS 1.2+ / TLS 1.3",
+      "cipher_suites": ["AES-256-GCM", "CHACHA20-POLY1305"],
+      "perfect_forward_secrecy": true,
+      "hsts_enabled": true
+    },
+    "data_protection": {
+      "encryption_at_rest": "AES-256",
+      "encryption_in_transit": "TLS",
+      "pii_encryption": true,
+      "key_management": "Environment variables / Vault"
+    },
+    "file_safety": {
+      "malware_scanning": "ClamAV integration",
+      "file_type_validation": true,
+      "size_limits": true,
+      "sanitization": true
+    },
+    "application_security": {
+      "input_validation": "Whitelist-based",
+      "xss_protection": true,
+      "csrf_protection": true,
+      "sql_injection_prevention": "Parameterized queries",
+      "rate_limiting": true,
+      "owasp_compliance": "OWASP Top 10"
+    },
+    "audit": {
+      "immutable_logs": true,
+      "hash_chaining": true,
+      "merkle_roots": true,
+      "siem_integration": "Optional (Splunk/ELK)"
+    }
+  },
+
+  "ui_components": {
+    "layouts": [
+      {
+        "name": "MainLayout",
+        "description": "Primary layout with sidebar navigation, header, and content area"
+      },
+      {
+        "name": "AuthLayout",
+        "description": "Login/registration pages layout"
+      }
+    ],
+    "pages": [
+      {"name": "LoginPage", "route": "/login"},
+      {"name": "DashboardPage", "route": "/"},
+      {"name": "DocumentListPage", "route": "/documents"},
+      {"name": "DocumentDetailPage", "route": "/documents/:id"},
+      {"name": "DocumentUploadPage", "route": "/documents/upload"},
+      {"name": "CustomerPage", "route": "/customers/:id"},
+      {"name": "VendorPage", "route": "/vendors/:id"},
+      {"name": "DepartmentPage", "route": "/departments/:id"},
+      {"name": "ApprovalQueuePage", "route": "/approvals"},
+      {"name": "SearchPage", "route": "/search"},
+      {"name": "ChatPage", "route": "/chat"},
+      {"name": "AnalyticsDashboard", "route": "/analytics"},
+      {"name": "AuditLogsPage", "route": "/audit"},
+      {"name": "LegalHoldsPage", "route": "/legal-holds"},
+      {"name": "PolicySettingsPage", "route": "/settings/policies"},
+      {"name": "PIISettingsPage", "route": "/settings/pii"},
+      {"name": "UserManagementPage", "route": "/admin/users"},
+      {"name": "RoleManagementPage", "route": "/admin/roles"},
+      {"name": "TenantSettingsPage", "route": "/admin/tenant"},
+      {"name": "BSIAnalysisPage", "route": "/bsi/:id"}
+    ],
+    "reusable_components": [
+      "Sidebar", "Header", "Breadcrumb", "DataTable", "SearchBar",
+      "FilterPanel", "DocumentCard", "DocumentPreview", "VersionHistory",
+      "LifecycleTimeline", "ApprovalFlow", "TagInput", "PIIMaskedField",
+      "FileUploader", "PDFViewer", "DiffViewer", "ChatWidget",
+      "NotificationBell", "UserAvatar", "StatusBadge", "PermissionGate",
+      "MetadataForm", "CustomFieldRenderer", "ChartCard", "AlertBanner"
+    ]
+  },
+
+  "background_jobs": [
+    {
+      "name": "ocr_processor",
+      "description": "Process uploaded documents with OCR",
+      "schedule": "On upload / Queue"
+    },
+    {
+      "name": "retention_scheduler",
+      "description": "Check and execute retention policies",
+      "schedule": "Daily at 2 AM"
+    },
+    {
+      "name": "auto_archive_scheduler",
+      "description": "Archive inactive documents",
+      "schedule": "Daily at 3 AM"
+    },
+    {
+      "name": "merkle_root_generator",
+      "description": "Generate daily Merkle roots for audit",
+      "schedule": "Daily at 1 AM"
+    },
+    {
+      "name": "expiry_notifier",
+      "description": "Send notifications for expiring documents",
+      "schedule": "Daily at 9 AM"
+    },
+    {
+      "name": "embedding_generator",
+      "description": "Generate vector embeddings for search",
+      "schedule": "On document creation / Queue"
+    },
+    {
+      "name": "analytics_aggregator",
+      "description": "Aggregate metrics for dashboard",
+      "schedule": "Hourly"
+    }
+  ],
+
+  "project_structure": {
+    "backend": {
+      "app": {
+        "api": {
+          "v1": {
+            "endpoints": ["auth.py", "users.py", "documents.py", "versions.py", "workflows.py", "search.py", "audit.py", "analytics.py", "pii.py", "bsi.py", "chat.py"],
+            "dependencies.py": "Dependency injection",
+            "__init__.py": "Router aggregation"
+          }
+        },
+        "core": ["config.py", "security.py", "database.py", "events.py"],
+        "models": ["user.py", "document.py", "workflow.py", "audit.py", "pii.py", "bsi.py"],
+        "schemas": ["user.py", "document.py", "workflow.py", "audit.py", "pii.py", "bsi.py"],
+        "services": ["auth_service.py", "document_service.py", "ocr_service.py", "pii_service.py", "search_service.py", "audit_service.py", "notification_service.py", "bsi_service.py", "chat_service.py"],
+        "tasks": ["ocr_tasks.py", "retention_tasks.py", "notification_tasks.py", "embedding_tasks.py"],
+        "utils": ["hashing.py", "encryption.py", "validators.py", "merkle.py"],
+        "main.py": "FastAPI application entry point"
+      },
+      "tests": "Test files",
+      "alembic": "Database migrations",
+      "requirements.txt": "Python dependencies",
+      "Dockerfile": "Container configuration"
+    },
+    "frontend": {
+      "src": {
+        "components": "Reusable UI components",
+        "pages": "Page components",
+        "layouts": "Layout components",
+        "hooks": "Custom React hooks",
+        "services": "API service functions",
+        "store": "State management (Redux/Zustand)",
+        "utils": "Utility functions",
+        "types": "TypeScript types",
+        "styles": "Global styles",
+        "App.tsx": "Root component",
+        "main.tsx": "Entry point"
+      },
+      "public": "Static assets",
+      "package.json": "Node dependencies",
+      "vite.config.ts": "Vite configuration",
+      "tailwind.config.js": "TailwindCSS configuration",
+      "Dockerfile": "Container configuration"
+    }
+  },
+
+  "development_phases": [
+    {
+      "phase": 1,
+      "name": "Core Foundation",
+      "duration": "4 weeks",
+      "modules": ["M01", "M02", "M03", "M04", "M12"],
+      "deliverables": [
+        "Authentication & Authorization",
+        "Document Upload & Management",
+        "Version Control",
+        "Lifecycle Management",
+        "Basic Audit Logging"
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Compliance & Security",
+      "duration": "3 weeks",
+      "modules": ["M05", "M06", "M07", "M08", "M09"],
+      "deliverables": [
+        "Approval Workflows",
+        "WORM Records",
+        "Retention Policies",
+        "Legal Hold",
+        "PII Detection & Protection"
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Search & Intelligence",
+      "duration": "3 weeks",
+      "modules": ["M10", "M11", "M13", "M14", "M15"],
+      "deliverables": [
+        "Document Sharing",
+        "Taxonomy & Tagging",
+        "Hybrid Search",
+        "AI Q&A Chatbot",
+        "Analytics Dashboard"
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Advanced Features",
+      "duration": "2 weeks",
+      "modules": ["M16", "M17", "M18", "M19"],
+      "deliverables": [
+        "Bank Statement Intelligence",
+        "Offline/Edge Support",
+        "Multi-Tenancy",
+        "Notifications"
+      ]
+    }
+  ],
+
+  "testing_requirements": {
+    "unit_tests": "pytest for backend, Jest for frontend",
+    "integration_tests": "API endpoint testing",
+    "e2e_tests": "Playwright / Cypress",
+    "security_tests": "OWASP ZAP scanning",
+    "performance_tests": "Load testing with Locust"
+  },
+
+  "documentation_requirements": [
+    "API documentation (OpenAPI/Swagger)",
+    "User manual",
+    "Admin guide",
+    "Deployment guide",
+    "Security documentation"
+  ]
+}
