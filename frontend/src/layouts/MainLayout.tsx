@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   Layout,
@@ -26,11 +26,22 @@ import {
   RobotOutlined,
   BarChartOutlined,
   BankOutlined,
+  ShopOutlined,
+  FolderOutlined,
+  TableOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/authService'
 
 const { Header, Sider, Content } = Layout
+
+// Permission checker helper
+const hasPermission = (userPermissions: string[], required: string[]): boolean => {
+  if (userPermissions.includes('*')) return true;
+  return required.some(req => 
+    userPermissions.some(p => p === req || p === `${req.split(':')[0]}:*` || p.startsWith(req.split(':')[0] + ':'))
+  );
+};
 
 const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
@@ -38,6 +49,27 @@ const MainLayout: React.FC = () => {
   const location = useLocation()
   const { user, logout, refreshToken } = useAuthStore()
   const { token } = theme.useToken()
+
+  // Get user permissions from roles
+  const userPermissions = useMemo(() => {
+    if (!user?.roles) return [];
+    return user.roles.flatMap(r => r.permissions || []);
+  }, [user]);
+
+  const userRoles = useMemo(() => {
+    if (!user?.roles) return [];
+    return user.roles.map(r => r.name);
+  }, [user]);
+
+  const isAdmin = userRoles.includes('super_admin') || userRoles.includes('admin');
+  const isManager = userRoles.includes('manager');
+  const isLegal = userRoles.includes('legal');
+  const isCompliance = userRoles.includes('compliance');
+  const isViewer = userRoles.includes('viewer');
+  const canManageDocuments = hasPermission(userPermissions, ['documents:create', 'documents:update']);
+  const canViewAnalytics = hasPermission(userPermissions, ['analytics:view']) || isAdmin || isManager;
+  const canApprove = hasPermission(userPermissions, ['workflows:approve']) || isAdmin || isManager;
+  const canAccessCompliance = isAdmin || isLegal || isCompliance;
 
   const handleLogout = async () => {
     if (refreshToken) {
@@ -51,97 +83,95 @@ const MainLayout: React.FC = () => {
     navigate('/login')
   }
 
-  const menuItems = [
-    {
-      key: '/',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-    },
-    {
-      key: '/documents',
-      icon: <FileOutlined />,
-      label: 'Documents',
-    },
-    {
-      key: '/documents/upload',
-      icon: <UploadOutlined />,
-      label: 'Upload',
-    },
-    {
-      key: '/search',
-      icon: <SearchOutlined />,
-      label: 'Search',
-    },
-    {
-      key: '/chat',
-      icon: <RobotOutlined />,
-      label: 'AI Chat',
-    },
-    {
-      key: '/analytics',
-      icon: <BarChartOutlined />,
-      label: 'Analytics',
-    },
-    {
-      key: '/bsi',
-      icon: <BankOutlined />,
-      label: 'Bank Statements',
-    },
-    {
-      key: '/approvals',
-      icon: <AuditOutlined />,
-      label: 'Approvals',
-    },
-    {
-      key: 'compliance',
-      icon: <SafetyOutlined />,
-      label: 'Compliance',
-      children: [
-        {
-          key: '/compliance/legal-holds',
-          icon: <SafetyOutlined />,
-          label: 'Legal Holds',
-        },
-        {
-          key: '/compliance/retention',
-          icon: <AuditOutlined />,
-          label: 'Retention Policies',
-        },
-        {
-          key: '/compliance/audit',
-          icon: <AuditOutlined />,
-          label: 'Audit Log',
-        },
-      ],
-    },
-    {
-      key: 'admin',
-      icon: <SettingOutlined />,
-      label: 'Administration',
-      children: [
-        {
-          key: '/admin/users',
-          icon: <TeamOutlined />,
-          label: 'Users',
-        },
-        {
-          key: '/admin/roles',
-          icon: <SafetyOutlined />,
-          label: 'Roles',
-        },
-        {
-          key: '/settings/pii',
-          icon: <SafetyOutlined />,
-          label: 'PII Detection',
-        },
-        {
-          key: '/settings/workflows',
-          icon: <SettingOutlined />,
-          label: 'Workflows',
-        },
-      ],
-    },
-  ]
+  const menuItems = useMemo(() => {
+    const items: any[] = [
+      {
+        key: '/',
+        icon: <DashboardOutlined />,
+        label: 'Dashboard',
+      },
+      {
+        key: 'documents-menu',
+        icon: <FileOutlined />,
+        label: 'Documents',
+        children: [
+          { key: '/documents', icon: <FileOutlined />, label: 'All Documents' },
+          { key: '/documents/dashboard', icon: <TableOutlined />, label: 'Document Dashboard' },
+          ...(canManageDocuments ? [{ key: '/documents/upload', icon: <UploadOutlined />, label: 'Upload' }] : []),
+        ],
+      },
+    ];
+
+    // Entities - Admin, Manager only
+    if (isAdmin || isManager) {
+      items.push({
+        key: 'entities-menu',
+        icon: <UserOutlined />,
+        label: 'Entities',
+        children: [
+          { key: '/entities/customers', icon: <UserOutlined />, label: 'Customers' },
+          { key: '/entities/vendors', icon: <ShopOutlined />, label: 'Vendors' },
+          { key: '/entities/departments', icon: <BankOutlined />, label: 'Departments' },
+        ],
+      });
+    }
+
+    // Search - Everyone
+    items.push({ key: '/search', icon: <SearchOutlined />, label: 'Search' });
+
+    // AI Chat - Everyone except viewer
+    if (!isViewer) {
+      items.push({ key: '/chat', icon: <RobotOutlined />, label: 'AI Chat' });
+    }
+
+    // Analytics - Admin, Manager
+    if (canViewAnalytics) {
+      items.push({ key: '/analytics', icon: <BarChartOutlined />, label: 'Analytics' });
+    }
+
+    // Bank Statements - Admin, Manager, Compliance
+    if (isAdmin || isManager || isCompliance) {
+      items.push({ key: '/bsi', icon: <BankOutlined />, label: 'Bank Statements' });
+    }
+
+    // Approvals - Admin, Manager
+    if (canApprove) {
+      items.push({ key: '/approvals', icon: <AuditOutlined />, label: 'Approvals' });
+    }
+
+    // Compliance - Admin, Legal, Compliance
+    if (canAccessCompliance) {
+      items.push({
+        key: 'compliance',
+        icon: <SafetyOutlined />,
+        label: 'Compliance',
+        children: [
+          { key: '/compliance/legal-holds', icon: <SafetyOutlined />, label: 'Legal Holds' },
+          { key: '/compliance/retention', icon: <AuditOutlined />, label: 'Retention Policies' },
+          { key: '/compliance/audit', icon: <AuditOutlined />, label: 'Audit Log' },
+        ],
+      });
+    }
+
+    // Administration - Admin only
+    if (isAdmin) {
+      items.push({
+        key: 'admin',
+        icon: <SettingOutlined />,
+        label: 'Administration',
+        children: [
+          { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+          { key: '/admin/roles', icon: <SafetyOutlined />, label: 'Roles' },
+          { key: '/admin/document-types', icon: <FolderOutlined />, label: 'Document Types' },
+          { key: '/admin/settings', icon: <SettingOutlined />, label: 'System Settings' },
+          { key: '/settings/pii', icon: <SafetyOutlined />, label: 'PII Detection' },
+          { key: '/settings/workflows', icon: <SettingOutlined />, label: 'Workflows' },
+        ],
+      });
+    }
+
+    return items;
+  }, [userPermissions, isAdmin, isManager, isLegal, isCompliance, isViewer, canManageDocuments, canViewAnalytics, canApprove, canAccessCompliance]);
 
   const userMenuItems = [
     {

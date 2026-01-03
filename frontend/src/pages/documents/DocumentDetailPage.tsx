@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Card,
@@ -22,11 +22,14 @@ import {
   FileOutlined,
   LockOutlined,
   SafetyOutlined,
+  EyeOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { documentService } from '@/services/documentService'
 import type { LifecycleStatus } from '@/types'
 import dayjs from 'dayjs'
+import { LifecycleTimeline } from '@/components/common'
+import DocumentViewer from '@/components/common/DocumentViewer'
 
 const { Title, Text } = Typography
 
@@ -34,6 +37,7 @@ const DocumentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [viewerOpen, setViewerOpen] = useState(false)
 
   // Fetch document
   const { data: document, isLoading } = useQuery({
@@ -244,12 +248,18 @@ const DocumentDetailPage: React.FC = () => {
                   </Tag>
                 )}
               </Space>
+              <div className="mt-3">
+                <LifecycleTimeline currentStatus={document.lifecycle_status} />
+              </div>
             </div>
           </div>
 
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/documents')}>
               Back
+            </Button>
+            <Button icon={<EyeOutlined />} type="primary" onClick={() => setViewerOpen(true)}>
+              View
             </Button>
             <Button icon={<DownloadOutlined />} onClick={handleDownload}>
               Download
@@ -277,6 +287,17 @@ const DocumentDetailPage: React.FC = () => {
       <Card>
         <Tabs items={tabItems} />
       </Card>
+
+      {/* Document Viewer Modal */}
+      <DocumentViewer
+        documentId={document.id}
+        fileName={document.file_name}
+        mimeType={document.mime_type}
+        open={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        extractedMetadata={document.extracted_metadata}
+        ocrText={document.ocr_text}
+      />
     </div>
   )
 }

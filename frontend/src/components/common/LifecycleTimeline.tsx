@@ -1,92 +1,47 @@
-import React from 'react'
-import { Steps, Tag, Space } from 'antd'
-import {
-  EditOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  InboxOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons'
-import type { LifecycleStatus } from '@/types'
-
-
-interface LifecycleTransition {
-  id: string
-  from_status: LifecycleStatus | null
-  to_status: LifecycleStatus
-  transitioned_at: string
-  transitioned_by?: {
-    id: string
-    full_name: string
-  }
-  reason?: string
-}
+import React from 'react';
+import { Steps, Tag } from 'antd';
+import { CheckCircleOutlined, ClockCircleOutlined, EditOutlined, FileSearchOutlined, InboxOutlined, DeleteOutlined } from '@ant-design/icons';
 
 interface LifecycleTimelineProps {
-  currentStatus: LifecycleStatus
-  transitions?: LifecycleTransition[]
-  compact?: boolean
+  currentStatus: string;
+  showLabels?: boolean;
 }
 
-const statusConfig: Record<LifecycleStatus, { icon: React.ReactNode; color: string }> = {
-  DRAFT: { icon: <EditOutlined />, color: '#8c8c8c' },
-  REVIEW: { icon: <ClockCircleOutlined />, color: '#1890ff' },
-  APPROVED: { icon: <CheckCircleOutlined />, color: '#52c41a' },
-  ARCHIVED: { icon: <InboxOutlined />, color: '#faad14' },
-  DELETED: { icon: <DeleteOutlined />, color: '#ff4d4f' },
-}
+const LIFECYCLE_STEPS = [
+  { key: 'DRAFT', label: 'Draft', icon: <EditOutlined /> },
+  { key: 'REVIEW', label: 'Review', icon: <FileSearchOutlined /> },
+  { key: 'APPROVED', label: 'Approved', icon: <CheckCircleOutlined /> },
+  { key: 'ARCHIVED', label: 'Archived', icon: <InboxOutlined /> },
+];
 
-const LIFECYCLE_ORDER: LifecycleStatus[] = ['DRAFT', 'REVIEW', 'APPROVED', 'ARCHIVED']
+const getStatusIndex = (status: string): number => {
+  const idx = LIFECYCLE_STEPS.findIndex(s => s.key === status);
+  return idx >= 0 ? idx : 0;
+};
 
-const LifecycleTimeline: React.FC<LifecycleTimelineProps> = ({
-  currentStatus,
-  transitions = [],
-  compact = false,
-}) => {
-  const currentIndex = LIFECYCLE_ORDER.indexOf(currentStatus)
+const LifecycleTimeline: React.FC<LifecycleTimelineProps> = ({ currentStatus, showLabels = true }) => {
+  const currentIndex = getStatusIndex(currentStatus);
+  const isDeleted = currentStatus === 'DELETED';
 
-  const items = LIFECYCLE_ORDER.map((status, index) => {
-    const config = statusConfig[status]
-    const isCompleted = index < currentIndex
-    const isCurrent = status === currentStatus
-
-    let stepStatus: 'wait' | 'process' | 'finish' | 'error' = 'wait'
-    if (isCompleted) stepStatus = 'finish'
-    if (isCurrent) stepStatus = 'process'
-    if (currentStatus === 'DELETED') stepStatus = 'error'
-
-    const transition = transitions.find((t) => t.to_status === status)
-
-    return {
-      title: (
-        <Space>
-          <span>{status}</span>
-          {isCurrent && <Tag color={config.color}>Current</Tag>}
-        </Space>
-      ),
-      description: !compact && transition && (
-        <div className="text-xs text-gray-500">
-          {transition.transitioned_by && (
-            <div>By: {transition.transitioned_by.full_name}</div>
-          )}
-          {transition.reason && (
-            <div className="italic">"{transition.reason}"</div>
-          )}
-        </div>
-      ),
-      status: stepStatus,
-      icon: config.icon,
-    }
-  })
+  if (isDeleted) {
+    return (
+      <div className="flex items-center gap-2">
+        <Tag icon={<DeleteOutlined />} color="red">DELETED</Tag>
+      </div>
+    );
+  }
 
   return (
     <Steps
       current={currentIndex}
-      items={items}
-      size={compact ? 'small' : 'default'}
-      direction={compact ? 'horizontal' : 'horizontal'}
+      size="small"
+      items={LIFECYCLE_STEPS.map((step, idx) => ({
+        title: showLabels ? step.label : undefined,
+        icon: step.icon,
+        status: idx < currentIndex ? 'finish' : idx === currentIndex ? 'process' : 'wait',
+      }))}
     />
-  )
-}
+  );
+};
 
-export default LifecycleTimeline
+export default LifecycleTimeline;

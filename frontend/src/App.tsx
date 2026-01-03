@@ -14,6 +14,8 @@ import DashboardPage from '@/pages/dashboard/DashboardPage'
 import DocumentListPage from '@/pages/documents/DocumentListPage'
 import DocumentDetailPage from '@/pages/documents/DocumentDetailPage'
 import DocumentUploadPage from '@/pages/documents/DocumentUploadPage'
+import DocumentOverviewPage from '@/pages/documents/DocumentOverviewPage'
+import DocumentDashboard from '@/pages/documents/DocumentDashboard'
 import ApprovalQueuePage from '@/pages/approvals/ApprovalQueuePage'
 import LegalHoldsPage from '@/pages/compliance/LegalHoldsPage'
 import RetentionPoliciesPage from '@/pages/compliance/RetentionPoliciesPage'
@@ -29,6 +31,12 @@ import NotificationsPage from '@/pages/notifications/NotificationsPage'
 // Admin Pages
 import UsersPage from '@/pages/admin/UsersPage'
 import RolesPage from '@/pages/admin/RolesPage'
+import DocumentTypesPage from '@/pages/admin/DocumentTypesPage'
+import SettingsPage from '@/pages/admin/SettingsPage'
+// Entity Pages
+import CustomersPage from '@/pages/entities/CustomersPage'
+import VendorsPage from '@/pages/entities/VendorsPage'
+import DepartmentsPage from '@/pages/entities/DepartmentsPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -150,6 +158,15 @@ function App() {
           {/* Admin Routes */}
           <Route path="admin/users" element={<UsersPage />} />
           <Route path="admin/roles" element={<RolesPage />} />
+          <Route path="admin/document-types" element={<DocumentTypesPage />} />
+          <Route path="admin/settings" element={<SettingsPage />} />
+          {/* Entity Routes */}
+          <Route path="entities/customers" element={<CustomersPage />} />
+          <Route path="entities/vendors" element={<VendorsPage />} />
+          <Route path="entities/departments" element={<DepartmentsPage />} />
+          {/* Document Routes */}
+          <Route path="documents/dashboard" element={<DocumentDashboard />} />
+          <Route path="documents/:id/overview" element={<DocumentOverviewPage />} />
         </Route>
 
         {/* Catch all */}

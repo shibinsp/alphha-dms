@@ -99,6 +99,20 @@ async def create_user(
     return user
 
 
+# Role endpoints - MUST be before /{user_id} to avoid route conflict
+@router.get("/roles", response_model=List[RoleResponse])
+async def list_roles(
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db)
+):
+    """List available roles."""
+    roles = db.query(Role).filter(
+        (Role.tenant_id == tenant.id) | (Role.tenant_id.is_(None))
+    ).all()
+    return roles
+
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: str,
@@ -223,23 +237,6 @@ async def deactivate_user(
     )
 
     return {"message": "User deactivated successfully"}
-
-
-# Role endpoints
-@router.get("/roles", response_model=List[RoleResponse])
-async def list_roles(
-    current_user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
-    db: Session = Depends(get_db)
-):
-    """
-    List available roles.
-    """
-    roles = db.query(Role).filter(
-        (Role.tenant_id == tenant.id) | (Role.tenant_id.is_(None))
-    ).all()
-
-    return roles
 
 
 @router.post("/roles", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)

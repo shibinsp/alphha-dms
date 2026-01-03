@@ -104,6 +104,9 @@ class Document(Base):
     ocr_status = Column(Enum(OCRStatus), default=OCRStatus.PENDING)
     ocr_confidence = Column(Integer, nullable=True)  # 0-100
 
+    # AI-extracted metadata (from Mistral)
+    extracted_metadata = Column(JSON, default={})
+
     # Custom metadata
     custom_metadata = Column(JSON, default={})
 

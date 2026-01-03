@@ -4,21 +4,22 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "7001:7001"
     environment:
       - DATABASE_URL=sqlite:///./data/alphha.db
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-your-32-byte-encryption-key}
       - DEBUG=true
-      - CORS_ORIGINS=["http://localhost:3000", "http://localhost:5173"]
+      - CORS_ORIGINS=["http://185.215.166.90:7000", "http://localhost:7000"]
+      - MISTRAL_API_KEY=Jh5S3cDgj09pyJgXzUXiOGxWukB8BSY2
     volumes:
       - ./backend:/app
       - ./data:/app/data
       - ./uploads:/app/uploads
     depends_on:
       - redis
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 7001 --reload
     networks:
       - dms-network
 
@@ -27,13 +28,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "7000:7000"
     environment:
-      - VITE_API_URL=http://localhost:8000/api/v1
+      - VITE_API_URL=http://185.215.166.90:7001/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0 --port 3000
+    command: npm run dev -- --host 0.0.0.0 --port 7000
     networks:
       - dms-network
 

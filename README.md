@@ -1,156 +1,122 @@
 # Alphha DMS
 
-Enterprise-grade Government Document Management System
+Enterprise-grade Document Management System with AI-powered capabilities, compliance features, and multi-tenant architecture.
+
+## Features
+
+### Core Document Management
+- Document upload with source type classification (Customer/Vendor/Internal)
+- Version control with diff viewer and restore capability
+- Document lifecycle management (Draft → Review → Approved → Archived)
+- Check-in/Check-out model for document locking
+- Custom metadata fields (Text, Number, Date, Select, Multi-Select, Boolean)
+
+### Compliance & Security
+- WORM (Write-Once-Read-Many) records management
+- Legal hold & e-discovery with evidence export
+- Retention policies with auto-archive
+- Immutable audit ledger with hash chaining
+- DLP & PII detection with masking
+- Role-based access control (RBAC)
+
+### AI & Intelligence
+- OCR with Mistral AI integration
+- Semantic search with vector embeddings
+- AI-powered Q&A chatbot
+- Bank Statement Intelligence (BSI) with transaction analysis
+- Auto-tagging and taxonomy
+
+### Sharing & Permissions
+9 permission levels: Owner, Co-Owner, Editor, Commenter, Viewer (Download), Viewer (No Download), Link-Only, Restricted (Masked), No Access
 
 ## Technology Stack
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18+, TypeScript, Ant Design Pro, TailwindCSS, Zustand |
-| Backend | Python FastAPI, SQLAlchemy 2.0, SQLite (PostgreSQL-ready) |
+| Frontend | React 18, TypeScript, Ant Design, TailwindCSS, Zustand |
+| Backend | Python FastAPI, SQLAlchemy 2.0, SQLite |
 | Background Jobs | Celery + Redis |
 | Authentication | JWT + MFA |
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker and Docker Compose
-- Node.js 20+ (for local development)
-- Python 3.11+ (for local development)
-
-### Using Docker (Recommended)
-
 ```bash
 # Start all services
-docker-compose up -d
+docker-compose up -d --build
+
+# Seed the database
+docker-compose exec backend python -m app.scripts.seed_realistic
 
 # Access the application
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:8000/api/v1
-# API Docs: http://localhost:8000/api/v1/docs
+# Frontend: http://localhost:7000
+# Backend API: http://localhost:7001/api/v1
+# API Docs: http://localhost:7001/api/v1/docs
 ```
 
-### Local Development
+## Default Users
 
-#### Backend
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@alphha.local | admin123 |
+| Manager | manager@alphha.local | password123 |
+| Legal | legal@alphha.local | password123 |
+| Compliance | compliance@alphha.local | password123 |
+| User | user@alphha.local | password123 |
+| Viewer | viewer@alphha.local | password123 |
 
-```bash
-cd backend
+## Role Permissions
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+| Role | Access |
+|------|--------|
+| Admin | Full system access |
+| Manager | Documents, Entities, Analytics, Approvals |
+| Legal | Documents (read), Legal Hold, Audit, Compliance |
+| Compliance | Documents (read), Audit, PII, Compliance |
+| User | Documents (create, read, update) |
+| Viewer | Documents (read only) |
 
-# Install dependencies
-pip install -r requirements.txt
+## API Endpoints
 
-# Run database migrations and seed data
-python -m app.scripts.seed_data
+### Documents
+- `GET /api/v1/documents` - List documents
+- `POST /api/v1/documents` - Upload document
+- `GET /api/v1/documents/{id}` - Get document
+- `GET /api/v1/documents/{id}/versions` - Version history
+- `POST /api/v1/documents/{id}/versions/{v1}/diff/{v2}` - Compare versions
+- `POST /api/v1/documents/{id}/checkout` - Lock document
+- `POST /api/v1/documents/{id}/checkin` - Release lock
 
-# Start the server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+### Entities
+- `GET /api/v1/entities/customers` - List customers
+- `GET /api/v1/entities/vendors` - List vendors
+- `GET /api/v1/documents/departments` - List departments
 
-#### Frontend
+### Config
+- `GET /api/v1/config/options` - List config options
+- `POST /api/v1/config/options` - Create option
+- `POST /api/v1/config/options/seed-defaults` - Seed defaults
 
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-## Default Credentials
-
-After running the seed script:
-
-- **Email**: admin@alphha.local
-- **Password**: admin123
-
-⚠️ **Change the admin password in production!**
-
-## Modules Implemented
-
-### Phase 1: Core Foundation
-- ✅ M01: Authentication & Authorization (JWT, MFA, RBAC)
-- ✅ M02: Document Management Core
-- ✅ M03: Document Versioning
-- ✅ M04: Document Lifecycle
-- ✅ M12: Immutable Audit Ledger
-- ✅ M18: Multi-Tenancy (partial)
-
-### Phase 2: Compliance & Security
-- ✅ M05: Approval Workflow
-- ✅ M06: WORM Records
-- ✅ M07: Retention & Policy Engine
-- ✅ M08: Legal Hold & E-Discovery
-- ✅ M09: DLP & PII Detection
-
-### Phase 3: Search & Intelligence
-- ✅ M10: Document Sharing & Permissions
-- ✅ M11: Taxonomy & Auto-Tagging
-- ✅ M13: Search & Semantic Retrieval
-- ✅ M14: AI-Augmented Q&A Chatbot
-
-### Phase 4: Advanced Features
-- ✅ M15: Governance & Analytics Dashboard
-- ✅ M16: Bank Statement Intelligence
-- ✅ M17: Offline/Edge Capture (PWA)
-- ✅ M19: Notifications & Alerts
-
-## API Documentation
-
-The API documentation is available at:
-- Swagger UI: http://localhost:8000/api/v1/docs
-- ReDoc: http://localhost:8000/api/v1/redoc
+### Sharing
+- `GET /api/v1/documents/{id}/shares` - List shares
+- `POST /api/v1/documents/{id}/share` - Share document
 
 ## Project Structure
 
 ```
 /backend/
 ├── app/
-│   ├── main.py                 # FastAPI application
-│   ├── core/                   # Core configuration
-│   │   ├── config.py           # Settings
-│   │   ├── database.py         # SQLAlchemy setup
-│   │   ├── security.py         # JWT, password hashing
-│   │   └── events.py           # Startup/shutdown events
-│   ├── api/v1/                 # API endpoints
-│   │   ├── endpoints/          # Route handlers
-│   │   └── dependencies.py     # Auth dependencies
-│   ├── models/                 # SQLAlchemy models
-│   ├── schemas/                # Pydantic schemas
-│   ├── services/               # Business logic
-│   ├── tasks/                  # Celery tasks
-│   └── utils/                  # Utilities
-├── alembic/                    # Database migrations
-├── requirements.txt
-└── Dockerfile
-
+│   ├── api/v1/endpoints/    # API routes
+│   ├── models/              # SQLAlchemy models
+│   ├── schemas/             # Pydantic schemas
+│   ├── services/            # Business logic
+│   └── scripts/             # Seed scripts
 /frontend/
 ├── src/
-│   ├── components/             # Reusable components
-│   ├── pages/                  # Page components
-│   ├── layouts/                # Layout components
-│   ├── hooks/                  # Custom hooks
-│   ├── services/               # API services
-│   ├── store/                  # Zustand stores
-│   ├── types/                  # TypeScript types
-│   └── styles/                 # Global styles
-├── package.json
-├── vite.config.ts
-└── Dockerfile
+│   ├── components/          # Reusable components
+│   ├── pages/               # Page components
+│   ├── layouts/             # Layout components
+│   └── services/            # API services
 ```
-
-## Design Theme
-
-- **Primary**: #1E3A5F (Navy Blue)
-- **Secondary**: #2E7D32 (Government Green)
-- **Accent**: #B8860B (Gold)
 
 ## License
 

@@ -9,11 +9,16 @@ from app.core.database import Base
 
 
 class PermissionLevel(str, enum.Enum):
-    OWNER = "OWNER"
-    EDITOR = "EDITOR"
-    VIEWER = "VIEWER"
-    COMMENTER = "COMMENTER"
-    DOWNLOADER = "DOWNLOADER"
+    """Document permission levels per Excel spec."""
+    OWNER = "OWNER"  # Full control (edit, share, move, delete, change permissions)
+    CO_OWNER = "CO_OWNER"  # Full control except permission changes
+    EDITOR = "EDITOR"  # Edit content, metadata, upload new versions, comment
+    COMMENTER = "COMMENTER"  # View + comment only
+    VIEWER_DOWNLOAD = "VIEWER_DOWNLOAD"  # Preview + Download
+    VIEWER_NO_DOWNLOAD = "VIEWER_NO_DOWNLOAD"  # Preview only (no print/export)
+    LINK_ONLY = "LINK_ONLY"  # Read-only via link, no audit, no metadata
+    RESTRICTED_MASKED = "RESTRICTED_MASKED"  # View only redacted/PII-masked version
+    NO_ACCESS = "NO_ACCESS"  # Cannot view or list
 
 
 class ShareLinkType(str, enum.Enum):

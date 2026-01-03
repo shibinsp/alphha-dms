@@ -1,0 +1,2193 @@
+{
+  "project": {
+    "name": "Alphha Document Management System",
+    "version": "2.0",
+    "description": "Enterprise-grade Document Management System with AI-powered capabilities, compliance features, and multi-tenant architecture"
+  },
+  "instructions": {
+    "general": "Implement all modules following enterprise security standards, scalable architecture, and best practices. Each module should be developed as microservices with REST APIs. Use TypeScript/Node.js for backend, React for frontend, PostgreSQL for primary database, and Redis for caching.",
+    "priority": "high",
+    "integrations": {
+      "required": [
+        "Banks API integration",
+        "SIEM platforms",
+        "IAM systems (Okta, Azure AD, Ping, Keycloak)",
+        "Single Sign-On (SSO)",
+        "OAuth/OIDC/SAML"
+      ]
+    }
+  },
+  "modules": [
+    {
+      "id": "5.1",
+      "name": "Versioning Module",
+      "priority": "critical",
+      "description": "Preserve every iteration of a document as an immutable version for audit, rollback, and compliance",
+      "businessPurpose": "Ensure users can track what changed, when it changed, and who changed it without overwriting older versions. Maintains audit trail, rollback capability, and data history integrity.",
+      "requirements": [
+        {
+          "id": "5.1.1",
+          "feature": "Auto Version Creation",
+          "description": "A new version is automatically created whenever a document file or metadata is updated",
+          "acceptance": [
+            "Version created on file re-upload",
+            "Version created on metadata update",
+            "Maintain source styling (Word stays Word, PDF stays PDF)"
+          ]
+        },
+        {
+          "id": "5.1.2",
+          "feature": "Immutable Previous Versions",
+          "description": "All previous versions remain read-only and cannot be modified",
+          "acceptance": [
+            "Previous versions are locked from editing",
+            "Only new versions can be created, never modified"
+          ]
+        },
+        {
+          "id": "5.1.3",
+          "feature": "Version History Display",
+          "description": "Version list shows: Version #, Timestamp, Updated By, Reason (optional)",
+          "acceptance": [
+            "Display complete version history",
+            "Show diff between versions using Monaco diff viewer or similar",
+            "User can select any previous version from dropdown for comparison",
+            "Once approved, display final record only"
+          ]
+        },
+        {
+          "id": "5.1.4",
+          "feature": "Version Access",
+          "description": "Users can view and download any past version",
+          "acceptance": [
+            "View any historical version",
+            "Download any historical version",
+            "Proper access control on version access"
+          ]
+        },
+        {
+          "id": "5.1.5",
+          "feature": "Version Restore",
+          "description": "Selecting an older version creates a new version (does not overwrite)",
+          "acceptance": [
+            "Restore creates new version number",
+            "Original version chain preserved",
+            "Audit log captures restore action"
+          ]
+        }
+      ],
+      "dataModel": {
+        "DocumentVersion": {
+          "id": "UUID",
+          "documentId": "UUID (FK)",
+          "versionNumber": "INTEGER",
+          "fileUrl": "STRING",
+          "fileChecksum": "STRING (SHA-256)",
+          "fileType": "STRING",
+          "fileSize": "BIGINT",
+          "metadata": "JSONB",
+          "createdBy": "UUID (FK to User)",
+          "createdAt": "TIMESTAMP",
+          "reason": "STRING (optional)",
+          "isLatest": "BOOLEAN",
+          "previousVersionId": "UUID (FK, nullable)"
+        }
+      },
+      "apis": [
+        "POST /api/v1/documents/{id}/versions - Create new version",
+        "GET /api/v1/documents/{id}/versions - List all versions",
+        "GET /api/v1/documents/{id}/versions/{versionId} - Get specific version",
+        "GET /api/v1/documents/{id}/versions/{v1}/diff/{v2} - Get diff between versions",
+        "POST /api/v1/documents/{id}/versions/{versionId}/restore - Restore version"
+      ]
+    },
+    {
+      "id": "5.2",
+      "name": "Document Lifecycle Management",
+      "priority": "critical",
+      "description": "Control document states end-to-end: Draft → Review → Approved → Archived → Deleted",
+      "businessPurpose": "Ensure documents follow a governed flow so status is always known and changes are authorized, trackable, and auditable.",
+      "requirements": [
+        {
+          "id": "5.2.1",
+          "feature": "Status Management",
+          "description": "Every document has a clear status: Draft → Review → Approved → Archived",
+          "acceptance": [
+            "Status visible on all documents",
+            "Status transitions follow defined rules",
+            "Invalid transitions blocked"
+          ]
+        },
+        {
+          "id": "5.2.2",
+          "feature": "Authorization Control",
+          "description": "Only authorized users can change document status",
+          "acceptance": [
+            "Role-based status change permissions",
+            "Unauthorized attempts blocked and logged"
+          ]
+        },
+        {
+          "id": "5.2.3",
+          "feature": "Status Audit",
+          "description": "System records who changed the status + timestamp",
+          "acceptance": [
+            "Complete status change history",
+            "User, timestamp, old/new status recorded"
+          ]
+        },
+        {
+          "id": "5.2.4",
+          "feature": "Revision Workflow",
+          "description": "User can send document back to Draft/Revision, which creates a new version",
+          "acceptance": [
+            "Until approved, versions are marked as 'pending' not 'published'",
+            "Check-in/Check-out model - main version file locked during review",
+            "No new version creation while one is being processed",
+            "Pending version must be approved or rejected before new submission"
+          ]
+        },
+        {
+          "id": "5.2.5",
+          "feature": "Auto-Archive",
+          "description": "Inactive documents auto-archive after defined time",
+          "acceptance": [
+            "Configurable inactivity period per document type",
+            "Automatic archival job execution",
+            "Notification before auto-archive"
+          ]
+        },
+        {
+          "id": "5.2.6",
+          "feature": "Lifecycle Timeline UI",
+          "description": "UI shows lifecycle timeline (e.g., Draft → Approved → Archived)",
+          "acceptance": [
+            "Visual timeline component",
+            "Clickable stages showing details",
+            "Current status highlighted"
+          ]
+        },
+        {
+          "id": "5.2.7",
+          "feature": "Deletion Restriction",
+          "description": "Deletion will be restricted/disabled",
+          "acceptance": [
+            "Soft delete only",
+            "Hard delete requires special permissions",
+            "Deleted items recoverable within retention period"
+          ]
+        }
+      ],
+      "stateMachine": {
+        "states": ["DRAFT", "PENDING_REVIEW", "IN_REVIEW", "APPROVED", "ARCHIVED", "DELETED"],
+        "transitions": [
+          {"from": "DRAFT", "to": "PENDING_REVIEW", "action": "submit_for_review"},
+          {"from": "PENDING_REVIEW", "to": "IN_REVIEW", "action": "start_review"},
+          {"from": "IN_REVIEW", "to": "APPROVED", "action": "approve"},
+          {"from": "IN_REVIEW", "to": "DRAFT", "action": "reject"},
+          {"from": "APPROVED", "to": "ARCHIVED", "action": "archive"},
+          {"from": "ARCHIVED", "to": "APPROVED", "action": "restore"},
+          {"from": "ANY", "to": "DELETED", "action": "delete", "requiresPermission": "ADMIN"}
+        ]
+      },
+      "apis": [
+        "PATCH /api/v1/documents/{id}/status - Update document status",
+        "GET /api/v1/documents/{id}/lifecycle - Get lifecycle history",
+        "POST /api/v1/documents/{id}/checkout - Lock document for editing",
+        "POST /api/v1/documents/{id}/checkin - Release document lock"
+      ]
+    },
+    {
+      "id": "5.3",
+      "name": "Records Management (WORM)",
+      "priority": "critical",
+      "description": "Promote Approved versions to immutable records (Write-Once-Read-Many) for compliance",
+      "businessPurpose": "Protect finalized/approved documents from modification and maintain them for regulatory retention needs.",
+      "requirements": [
+        {
+          "id": "5.3.1",
+          "feature": "Record Lock",
+          "description": "Approved documents are marked as 'Record' and locked from modification",
+          "acceptance": [
+            "Automatic promotion to Record on approval",
+            "Complete modification lock",
+            "Record status cannot be reversed"
+          ]
+        },
+        {
+          "id": "5.3.2",
+          "feature": "Retention Period",
+          "description": "Each Record has a fixed retention expiry date based on document type",
+          "acceptance": [
+            "UI to define retention period per document type",
+            "Auto-archival configuration",
+            "Document review bucket for periodic review requirements (e.g., license agreements)"
+          ]
+        },
+        {
+          "id": "5.3.3",
+          "feature": "Read-Only Enforcement",
+          "description": "Records remain read-only until retention expiry",
+          "acceptance": [
+            "System-enforced immutability",
+            "No bypass for any user role",
+            "Legal hold can extend retention"
+          ]
+        },
+        {
+          "id": "5.3.4",
+          "feature": "Integrity Verification",
+          "description": "A checksum is generated and stored to verify document integrity",
+          "acceptance": [
+            "SHA-256 checksum on record creation",
+            "Periodic integrity verification",
+            "Tampering detection and alerts"
+          ]
+        },
+        {
+          "id": "5.3.5",
+          "feature": "Record Status Display",
+          "description": "System shows record status + expiry date in UI",
+          "acceptance": [
+            "Clear visual indicator of record status",
+            "Expiry date prominently displayed",
+            "Reports for expired and expiring documents with date filters"
+          ]
+        },
+        {
+          "id": "5.3.6",
+          "feature": "Expiry Alerts",
+          "description": "Email/SMS alert is triggered before retention expiry (e.g., 30 days prior)",
+          "acceptance": [
+            "Configurable alert periods",
+            "Multiple notification channels",
+            "Escalation for ignored alerts"
+          ]
+        },
+        {
+          "id": "5.3.7",
+          "feature": "Post-Expiry Handling",
+          "description": "After expiry, system marks the record for purge/archive per policy (no auto-delete)",
+          "acceptance": [
+            "Manual approval required for purge",
+            "Archive option available",
+            "Full audit trail maintained"
+          ]
+        },
+        {
+          "id": "5.3.8",
+          "feature": "Global Configuration",
+          "description": "Configuration is done once and applies to all modules",
+          "acceptance": [
+            "Central configuration console",
+            "No duplicate setup per module",
+            "Changes propagate immediately"
+          ]
+        }
+      ],
+      "dataModel": {
+        "RecordPolicy": {
+          "id": "UUID",
+          "documentTypeId": "UUID (FK)",
+          "retentionPeriodDays": "INTEGER",
+          "reviewPeriodDays": "INTEGER (nullable)",
+          "alertDaysBefore": "INTEGER[]",
+          "autoArchive": "BOOLEAN",
+          "requiresPeriodicReview": "BOOLEAN",
+          "tenantId": "UUID (FK)",
+          "createdAt": "TIMESTAMP",
+          "updatedAt": "TIMESTAMP"
+        },
+        "DocumentRecord": {
+          "id": "UUID",
+          "documentId": "UUID (FK)",
+          "versionId": "UUID (FK)",
+          "checksum": "STRING",
+          "checksumAlgorithm": "STRING",
+          "recordedAt": "TIMESTAMP",
+          "expiresAt": "TIMESTAMP",
+          "status": "ENUM (ACTIVE, EXPIRED, PURGE_PENDING, ARCHIVED)",
+          "legalHoldId": "UUID (FK, nullable)"
+        }
+      }
+    },
+    {
+      "id": "5.4",
+      "name": "Retention & Policy Engine",
+      "priority": "high",
+      "description": "Centralized configuration console for retention, archival, purge, and legal-hold rules",
+      "businessPurpose": "Automate archive/purge based on policy per docType/tenant/region; legal-hold overrides. Rules automatically referenced by all modules.",
+      "requirements": [
+        {
+          "id": "5.4.1",
+          "feature": "Central Policy Console",
+          "description": "Central screen to define retention, archival, and purge rules",
+          "acceptance": [
+            "Single admin interface",
+            "Rule creation wizard",
+            "Policy testing/preview"
+          ]
+        },
+        {
+          "id": "5.4.2",
+          "feature": "Rule Assignment",
+          "description": "Rules can be assigned by document type, tenant, and region",
+          "acceptance": [
+            "Multi-level rule hierarchy",
+            "Override capability",
+            "Inheritance support"
+          ]
+        },
+        {
+          "id": "5.4.3",
+          "feature": "Auto-Application",
+          "description": "Approved documents automatically follow retention and purge rules",
+          "acceptance": [
+            "No manual intervention required",
+            "Immediate rule application on approval",
+            "Retroactive rule application option"
+          ]
+        },
+        {
+          "id": "5.4.4",
+          "feature": "Scheduler",
+          "description": "Daily scheduler archives/purges documents when due",
+          "acceptance": [
+            "Nightly execution",
+            "Configurable execution time",
+            "Batch processing with limits"
+          ]
+        },
+        {
+          "id": "5.4.5",
+          "feature": "Legal Hold Override",
+          "description": "Legal hold flag prevents automatic purge",
+          "acceptance": [
+            "Legal hold blocks all deletions",
+            "Clear visual indicator",
+            "Audit trail for legal holds"
+          ]
+        },
+        {
+          "id": "5.4.6",
+          "feature": "Status Display",
+          "description": "UI shows retention state + next purge date",
+          "acceptance": [
+            "Dashboard widget",
+            "Document-level display",
+            "Bulk status view"
+          ]
+        },
+        {
+          "id": "5.4.7",
+          "feature": "Audit Logging",
+          "description": "All archive/purge actions logged for audit",
+          "acceptance": [
+            "Complete action logging",
+            "User/system attribution",
+            "Before/after state capture"
+          ]
+        },
+        {
+          "id": "5.4.8",
+          "feature": "Instant Propagation",
+          "description": "Rule change applies across all modules instantly",
+          "acceptance": [
+            "Real-time update propagation",
+            "No service restart required",
+            "Version control for rules"
+          ]
+        }
+      ],
+      "schedulerConfig": {
+        "type": "CRON",
+        "defaultSchedule": "0 2 * * *",
+        "jobs": [
+          "retention_check",
+          "auto_archive",
+          "purge_expired",
+          "send_notifications"
+        ]
+      }
+    },
+    {
+      "id": "5.5",
+      "name": "Governance & Analytics",
+      "priority": "high",
+      "description": "Analytics engine for compliance/usage insights and anomaly alerts",
+      "businessPurpose": "Provide compliance/usage insights and anomaly alerts for operations leaders. Single ETL pipeline reused across modules.",
+      "requirements": [
+        {
+          "id": "5.5.1",
+          "feature": "Volume Dashboard",
+          "description": "Dashboard shows volume of documents processed daily",
+          "acceptance": [
+            "Daily/weekly/monthly views",
+            "Document type breakdown",
+            "Trend visualization"
+          ]
+        },
+        {
+          "id": "5.5.2",
+          "feature": "OCR Accuracy Trend",
+          "description": "Dashboard shows OCR accuracy trend",
+          "acceptance": [
+            "Accuracy over time chart",
+            "Per document type accuracy",
+            "Field-level accuracy"
+          ]
+        },
+        {
+          "id": "5.5.3",
+          "feature": "Processing Time Analytics",
+          "description": "Dashboard highlights processing time per document type",
+          "acceptance": [
+            "Average processing time",
+            "Percentile distribution",
+            "Bottleneck identification"
+          ]
+        },
+        {
+          "id": "5.5.4",
+          "feature": "Approval Turnaround",
+          "description": "Dashboard highlights approval turnaround time",
+          "acceptance": [
+            "Per approver metrics",
+            "SLA compliance tracking",
+            "Aging documents alert"
+          ]
+        },
+        {
+          "id": "5.5.5",
+          "feature": "Anomaly Alerts",
+          "description": "System alerts anomalies like low OCR accuracy or overdue retention",
+          "acceptance": [
+            "Configurable thresholds",
+            "Email/SMS notifications",
+            "Alert dashboard"
+          ]
+        },
+        {
+          "id": "5.5.6",
+          "feature": "Summary API",
+          "description": "Key metrics exposed via summary API",
+          "acceptance": [
+            "REST API endpoints",
+            "Real-time and historical data",
+            "Export capability"
+          ]
+        },
+        {
+          "id": "5.5.7",
+          "feature": "Unified ETL",
+          "description": "One ETL job supports multiple modules; no duplication",
+          "acceptance": [
+            "Single data pipeline",
+            "Module-agnostic design",
+            "Incremental processing"
+          ]
+        }
+      ],
+      "dashboardWidgets": [
+        "documents_processed_today",
+        "ocr_accuracy_gauge",
+        "processing_time_chart",
+        "approval_turnaround_chart",
+        "retention_compliance_meter",
+        "anomaly_alerts_list",
+        "top_error_fields"
+      ]
+    },
+    {
+      "id": "5.6",
+      "name": "Legal Hold & E-Discovery",
+      "priority": "critical",
+      "description": "Freeze specific versions during legal/compliance matters; export evidence bundles",
+      "businessPurpose": "Ensures protected versions remain undeleted, unaltered during legal cases; allows controlled export of evidence bundles; provides restricted access via PII masking.",
+      "requirements": [
+        {
+          "id": "5.6.1",
+          "feature": "Legal Hold Application",
+          "description": "System must allow applying a legal hold on a document so it cannot be deleted or archived",
+          "acceptance": [
+            "One-click legal hold",
+            "Bulk hold application",
+            "Hold with reason/case reference"
+          ]
+        },
+        {
+          "id": "5.6.2",
+          "feature": "Hold Visibility",
+          "description": "UI must clearly display which documents/versions are on legal hold",
+          "acceptance": [
+            "Visual badge/icon",
+            "Filter by hold status",
+            "Hold details on hover"
+          ]
+        },
+        {
+          "id": "5.6.3",
+          "feature": "Hold Authorization",
+          "description": "Only authorized users can apply or release legal hold",
+          "acceptance": [
+            "Role-based access (Legal, Compliance)",
+            "Multi-level approval for release",
+            "Audit trail for all actions"
+          ]
+        },
+        {
+          "id": "5.6.4",
+          "feature": "Restricted View",
+          "description": "Unauthorized users can still view but must see masked/limited content",
+          "acceptance": [
+            "PII masking for unauthorized",
+            "Watermarked view",
+            "Download blocked"
+          ]
+        },
+        {
+          "id": "5.6.5",
+          "feature": "Evidence Export",
+          "description": "Authorized users can export a ZIP containing the frozen version + OCR text + basic audit trail",
+          "acceptance": [
+            "Complete evidence package",
+            "Include document + OCR + audit log",
+            "Manifest file included"
+          ]
+        },
+        {
+          "id": "5.6.6",
+          "feature": "Retention Override",
+          "description": "Legal hold documents must automatically bypass normal retention deletion",
+          "acceptance": [
+            "Scheduler respects hold status",
+            "No manual intervention needed",
+            "Clear documentation"
+          ]
+        },
+        {
+          "id": "5.6.7",
+          "feature": "Hold Tracking",
+          "description": "System must track timestamp + user for legal hold and release",
+          "acceptance": [
+            "Complete audit trail",
+            "Duration tracking",
+            "Historical hold view"
+          ]
+        },
+        {
+          "id": "5.6.8",
+          "feature": "Hold Dashboard",
+          "description": "Users can see list of all legal-hold documents and status",
+          "acceptance": [
+            "Filterable list view",
+            "Export capability",
+            "Case-based grouping"
+          ]
+        },
+        {
+          "id": "5.6.9",
+          "feature": "Export Logging",
+          "description": "Export action must be logged",
+          "acceptance": [
+            "Full audit trail",
+            "Export recipient tracking",
+            "Purpose documentation"
+          ]
+        }
+      ],
+      "dataModel": {
+        "LegalHold": {
+          "id": "UUID",
+          "caseReference": "STRING",
+          "reason": "TEXT",
+          "appliedBy": "UUID (FK to User)",
+          "appliedAt": "TIMESTAMP",
+          "releasedBy": "UUID (FK to User, nullable)",
+          "releasedAt": "TIMESTAMP (nullable)",
+          "status": "ENUM (ACTIVE, RELEASED)",
+          "tenantId": "UUID (FK)"
+        },
+        "LegalHoldDocument": {
+          "id": "UUID",
+          "legalHoldId": "UUID (FK)",
+          "documentId": "UUID (FK)",
+          "versionId": "UUID (FK)",
+          "addedAt": "TIMESTAMP",
+          "addedBy": "UUID (FK to User)"
+        }
+      }
+    },
+    {
+      "id": "5.7",
+      "name": "Advanced Access Control (RBAC + ABAC)",
+      "priority": "critical",
+      "description": "Granular access with roles + attributes (dept, region, purpose) checked per request",
+      "businessPurpose": "Strengthen access governance using Role-Based + Attribute-Based Access Control; ensure only authorized users view/download/export sensitive documents.",
+      "requirements": [
+        {
+          "id": "5.7.1",
+          "feature": "Role Definition",
+          "description": "System must define a small set of access roles (Admin/Legal/Compliance/User) centrally",
+          "acceptance": [
+            "Pre-defined role templates",
+            "Custom role creation",
+            "Role hierarchy support"
+          ]
+        },
+        {
+          "id": "5.7.2",
+          "feature": "Access Decision",
+          "description": "Access decisions must consider user role + document classification only",
+          "acceptance": [
+            "Real-time access evaluation",
+            "Deny by default",
+            "Explicit allow rules"
+          ]
+        },
+        {
+          "id": "5.7.3",
+          "feature": "Sensitive Document Watermark",
+          "description": "Document marked sensitive must show watermark to unauthorized users",
+          "acceptance": [
+            "Dynamic watermarking",
+            "User identity in watermark",
+            "Timestamp watermark"
+          ]
+        },
+        {
+          "id": "5.7.4",
+          "feature": "Download Restriction",
+          "description": "Sensitive docs downloadable only by Admin + Legal roles",
+          "acceptance": [
+            "Role-based download control",
+            "Conditional access rules",
+            "Download audit trail"
+          ]
+        },
+        {
+          "id": "5.7.5",
+          "feature": "Unauthorized Access Handling",
+          "description": "Unauthorized access attempts must be logged, user blocked, and notification sent to fraud team",
+          "acceptance": [
+            "Immediate access block",
+            "Email notification to security team",
+            "Incident ticket creation"
+          ]
+        },
+        {
+          "id": "5.7.6",
+          "feature": "Performance",
+          "description": "Access evaluation must be fast + UI seamless",
+          "acceptance": [
+            "Sub-100ms evaluation",
+            "Cached permissions",
+            "Background refresh"
+          ]
+        },
+        {
+          "id": "5.7.7",
+          "feature": "IAM Integration",
+          "description": "Integration with IAM platform for user creation, access definition, and controls via API",
+          "acceptance": [
+            "OAuth/OIDC/SAML mapping",
+            "SCIM or custom user-provisioning APIs",
+            "Sync logic for user data",
+            "Attribute mapping",
+            "Policy mapping",
+            "Access consistency testing",
+            "Error handling flows"
+          ],
+          "supportedProviders": ["Okta", "Azure AD", "Ping", "Keycloak"]
+        }
+      ],
+      "roles": [
+        {
+          "name": "ADMIN",
+          "permissions": ["*"],
+          "description": "Full system access"
+        },
+        {
+          "name": "LEGAL",
+          "permissions": ["document.read", "document.download", "legal_hold.*", "export.*"],
+          "description": "Legal team access"
+        },
+        {
+          "name": "COMPLIANCE",
+          "permissions": ["document.read", "document.download", "audit.*", "report.*"],
+          "description": "Compliance team access"
+        },
+        {
+          "name": "USER",
+          "permissions": ["document.read", "document.upload", "document.update_own"],
+          "description": "Standard user access"
+        },
+        {
+          "name": "VIEWER",
+          "permissions": ["document.read"],
+          "description": "Read-only access"
+        }
+      ]
+    },
+    {
+      "id": "5.8",
+      "name": "DLP & PII Detection",
+      "priority": "critical",
+      "description": "Prevent leakage of sensitive data (IDs, IBANs, faces); DLP scans OCR+metadata; masks in UI for non-privileged roles",
+      "businessPurpose": "Protect sensitive data from unauthorized exposure by detecting sensitive content and applying masking & basic access control.",
+      "requirements": [
+        {
+          "id": "5.8.1",
+          "feature": "PII Pattern Detection",
+          "description": "System must detect basic PII patterns (e.g., PAN, Aadhaar, passport, email)",
+          "acceptance": [
+            "Regex-based detection",
+            "Configurable patterns",
+            "Country-specific patterns"
+          ]
+        },
+        {
+          "id": "5.8.2",
+          "feature": "OCR-Based Detection",
+          "description": "Detection must work on OCR-extracted text, not only original file. Extracted OCR data should maintain the same style of source file.",
+          "acceptance": [
+            "Process OCR output",
+            "Preserve document styling",
+            "Real-time detection"
+          ]
+        },
+        {
+          "id": "5.8.3",
+          "feature": "PII Masking",
+          "description": "UI must mask PII if user is not authorized",
+          "acceptance": [
+            "Automatic masking",
+            "Format: ****{last4}",
+            "Role-based visibility"
+          ]
+        },
+        {
+          "id": "5.8.4",
+          "feature": "Download/Share Prevention",
+          "description": "System must prevent download/share of sensitive files for unauthorized roles",
+          "acceptance": [
+            "Block download action",
+            "Block share action",
+            "Clear error message"
+          ]
+        },
+        {
+          "id": "5.8.5",
+          "feature": "Authorized View",
+          "description": "Authorized roles can view unmasked text",
+          "acceptance": [
+            "Role-based unmasking",
+            "Audit trail for unmask",
+            "Time-limited access option"
+          ]
+        },
+        {
+          "id": "5.8.6",
+          "feature": "Detection Logging",
+          "description": "Detection events must be logged",
+          "acceptance": [
+            "Log all detections",
+            "Include field location",
+            "Pattern match details"
+          ]
+        },
+        {
+          "id": "5.8.7",
+          "feature": "Default Policies",
+          "description": "Default policies must ship ready-to-use (no setup needed)",
+          "acceptance": [
+            "Pre-configured patterns",
+            "Common PII types covered",
+            "Easy customization"
+          ]
+        }
+      ],
+      "piiPatterns": [
+        {"type": "PAN", "regex": "[A-Z]{5}[0-9]{4}[A-Z]{1}", "country": "IN"},
+        {"type": "AADHAAR", "regex": "[0-9]{4}\\s?[0-9]{4}\\s?[0-9]{4}", "country": "IN"},
+        {"type": "PASSPORT", "regex": "[A-Z]{1}[0-9]{7}", "country": "IN"},
+        {"type": "EMAIL", "regex": "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}", "country": "GLOBAL"},
+        {"type": "PHONE", "regex": "\\+?[0-9]{10,15}", "country": "GLOBAL"},
+        {"type": "IBAN", "regex": "[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}", "country": "GLOBAL"},
+        {"type": "SSN", "regex": "[0-9]{3}-[0-9]{2}-[0-9]{4}", "country": "US"},
+        {"type": "CREDIT_CARD", "regex": "[0-9]{4}[\\s-]?[0-9]{4}[\\s-]?[0-9]{4}[\\s-]?[0-9]{4}", "country": "GLOBAL"}
+      ]
+    },
+    {
+      "id": "5.9",
+      "name": "Taxonomy & Auto-Tagging",
+      "priority": "medium",
+      "description": "Enforce controlled vocabulary; auto-tag documents via NER + heuristics; human review queue",
+      "businessPurpose": "Ensure every document is tagged consistently to improve searchability, compliance reporting, and governance.",
+      "requirements": [
+        {
+          "id": "5.9.1",
+          "feature": "Keyword Extraction",
+          "description": "System must extract simple keywords (e.g., customer names, product types) from OCR/text and suggest tags",
+          "acceptance": [
+            "NLP-based extraction",
+            "Context-aware suggestions",
+            "Confidence scoring"
+          ]
+        },
+        {
+          "id": "5.9.2",
+          "feature": "Review Queue",
+          "description": "Suggested tags must appear for approval in a simple review queue",
+          "acceptance": [
+            "Batch approval UI",
+            "Accept/Reject/Edit options",
+            "Learning from corrections"
+          ]
+        },
+        {
+          "id": "5.9.3",
+          "feature": "Searchable Tags",
+          "description": "Approved tags become searchable keywords for all users",
+          "acceptance": [
+            "Full-text search integration",
+            "Tag-based filtering",
+            "Tag cloud visualization"
+          ]
+        },
+        {
+          "id": "5.9.4",
+          "feature": "Controlled Vocabulary",
+          "description": "A controlled tag list must be maintained centrally",
+          "acceptance": [
+            "Master tag database",
+            "Hierarchical tags",
+            "Synonyms support"
+          ]
+        },
+        {
+          "id": "5.9.5",
+          "feature": "Tag Administration",
+          "description": "Only Admin / Data Steward can approve or modify tags",
+          "acceptance": [
+            "Role-based tag management",
+            "Approval workflow",
+            "Bulk operations"
+          ]
+        },
+        {
+          "id": "5.9.6",
+          "feature": "Duplicate Prevention",
+          "description": "Duplicate tags must be avoided",
+          "acceptance": [
+            "Automatic deduplication",
+            "Merge similar tags",
+            "Suggestion of existing tags"
+          ]
+        },
+        {
+          "id": "5.9.7",
+          "feature": "Tag Audit",
+          "description": "Tag usage must be logged for traceability",
+          "acceptance": [
+            "Tag addition/removal log",
+            "User attribution",
+            "Timestamp tracking"
+          ]
+        },
+        {
+          "id": "5.9.8",
+          "feature": "Tag UX",
+          "description": "Allowed tags should be visible during search/filter UX",
+          "acceptance": [
+            "Autocomplete suggestions",
+            "Popular tags highlighted",
+            "Recent tags shown"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.10",
+      "name": "Immutable Audit Ledger",
+      "priority": "critical",
+      "description": "Tamper-evident audit by chaining event hashes; store daily Merkle roots; verify chains",
+      "businessPurpose": "Guarantee that all audit logs remain tamper-evident and are verifiable for internal & external investigations.",
+      "requirements": [
+        {
+          "id": "5.10.1",
+          "feature": "Cryptographic Hashing",
+          "description": "Every logged action must be stored with a cryptographic hash",
+          "acceptance": [
+            "SHA-256 hash per event",
+            "Include all event data",
+            "Hash stored with event"
+          ]
+        },
+        {
+          "id": "5.10.2",
+          "feature": "Hash Chaining",
+          "description": "Events must be chained so that modifying one event breaks integrity",
+          "acceptance": [
+            "Previous hash included",
+            "Blockchain-like structure",
+            "Integrity verification"
+          ]
+        },
+        {
+          "id": "5.10.3",
+          "feature": "Merkle Root",
+          "description": "A daily Merkle root must be generated to verify the log history",
+          "acceptance": [
+            "Daily root calculation",
+            "Efficient verification",
+            "External anchoring option"
+          ]
+        },
+        {
+          "id": "5.10.4",
+          "feature": "Verification Check",
+          "description": "A verification check must confirm if logs were modified",
+          "acceptance": [
+            "On-demand verification",
+            "Scheduled integrity checks",
+            "Tampering alerts"
+          ]
+        },
+        {
+          "id": "5.10.5",
+          "feature": "Export Capability",
+          "description": "Export capability must allow compliant users to download logs for a date range",
+          "acceptance": [
+            "Date range selection",
+            "Format options (JSON, CSV)",
+            "Verification metadata included"
+          ]
+        },
+        {
+          "id": "5.10.6",
+          "feature": "Access Control",
+          "description": "Only privileged roles may view/verify/export audit logs",
+          "acceptance": [
+            "Role-based access",
+            "Export approval workflow",
+            "Access logging"
+          ]
+        },
+        {
+          "id": "5.10.7",
+          "feature": "Verification Storage",
+          "description": "Verification results must be stored for reference",
+          "acceptance": [
+            "Verification history",
+            "Pass/fail records",
+            "Investigation support"
+          ]
+        }
+      ],
+      "dataModel": {
+        "AuditEvent": {
+          "id": "UUID",
+          "eventType": "STRING",
+          "entityType": "STRING",
+          "entityId": "UUID",
+          "userId": "UUID (FK)",
+          "userRole": "STRING",
+          "action": "STRING",
+          "previousValue": "JSONB",
+          "newValue": "JSONB",
+          "ipAddress": "STRING",
+          "userAgent": "STRING",
+          "timestamp": "TIMESTAMP",
+          "hash": "STRING (SHA-256)",
+          "previousHash": "STRING",
+          "tenantId": "UUID (FK)"
+        },
+        "AuditRoot": {
+          "id": "UUID",
+          "date": "DATE",
+          "merkleRoot": "STRING",
+          "eventCount": "INTEGER",
+          "firstEventId": "UUID (FK)",
+          "lastEventId": "UUID (FK)",
+          "calculatedAt": "TIMESTAMP",
+          "tenantId": "UUID (FK)"
+        }
+      }
+    },
+    {
+      "id": "5.11",
+      "name": "Vector Search & Semantic Retrieval",
+      "priority": "high",
+      "description": "Hybrid search → keyword (OpenSearch) + pgvector embeddings; respects RBAC/ABAC",
+      "businessPurpose": "Improve retrieval by combining keyword + semantic meaning for faster & relevant results across Arabic/English.",
+      "requirements": [
+        {
+          "id": "5.11.1",
+          "feature": "Hybrid Ranking",
+          "description": "System must rank documents based on both keyword match + semantic similarity",
+          "acceptance": [
+            "Combined scoring algorithm",
+            "Configurable weights",
+            "Relevance tuning"
+          ]
+        },
+        {
+          "id": "5.11.2",
+          "feature": "Bilingual Support",
+          "description": "System must support basic bilingual (Arabic + English) indexing + querying",
+          "acceptance": [
+            "Arabic tokenization",
+            "English tokenization",
+            "Cross-language search"
+          ]
+        },
+        {
+          "id": "5.11.3",
+          "feature": "RBAC-Aware Search",
+          "description": "Search results must respect RBAC—only authorized documents appear",
+          "acceptance": [
+            "Permission filtering",
+            "Real-time access check",
+            "No unauthorized results"
+          ]
+        },
+        {
+          "id": "5.11.4",
+          "feature": "Internal Index Only",
+          "description": "Retrieval must only occur over internal indexed documents",
+          "acceptance": [
+            "No external search",
+            "Index isolation",
+            "Tenant separation"
+          ]
+        },
+        {
+          "id": "5.11.5",
+          "feature": "Contextual Relevance",
+          "description": "Hybrid model must return top results with contextual relevance",
+          "acceptance": [
+            "Context-aware ranking",
+            "Snippet highlighting",
+            "Relevance explanation"
+          ]
+        },
+        {
+          "id": "5.11.6",
+          "feature": "Indexing Pipeline",
+          "description": "Indexing pipeline must store keyword + embedding for each document",
+          "acceptance": [
+            "Dual indexing",
+            "Incremental updates",
+            "Version-aware indexing"
+          ]
+        },
+        {
+          "id": "5.11.7",
+          "feature": "Search Performance",
+          "description": "Search latency should be optimized for quick response",
+          "acceptance": [
+            "Sub-second response",
+            "Caching strategy",
+            "Load balancing"
+          ]
+        }
+      ],
+      "techStack": {
+        "keywordSearch": "OpenSearch/Elasticsearch",
+        "vectorStore": "pgvector (PostgreSQL extension)",
+        "embeddingModel": "multilingual-e5-large or similar",
+        "languages": ["en", "ar"]
+      }
+    },
+    {
+      "id": "5.12",
+      "name": "AI-Augmented Search & Q&A (Chatbot)",
+      "priority": "high",
+      "description": "Intent parsing + hybrid retrieval → context assembly → LLM answer with citations",
+      "businessPurpose": "Allow users to ask natural-language questions and quickly obtain answers grounded in document content.",
+      "requirements": [
+        {
+          "id": "5.12.1",
+          "feature": "Natural Language Query",
+          "description": "Users must ask natural-language questions without knowing search syntax",
+          "acceptance": [
+            "Conversational interface",
+            "Intent understanding",
+            "Query reformulation"
+          ]
+        },
+        {
+          "id": "5.12.2",
+          "feature": "Hybrid Retrieval",
+          "description": "System must retrieve relevant text using keyword + embedding search",
+          "acceptance": [
+            "Combined retrieval",
+            "Re-ranking",
+            "Top-k selection"
+          ]
+        },
+        {
+          "id": "5.12.3",
+          "feature": "Citation",
+          "description": "AI answers must cite the exact source text (page/section reference)",
+          "acceptance": [
+            "Source attribution",
+            "Page number reference",
+            "Clickable citations"
+          ]
+        },
+        {
+          "id": "5.12.4",
+          "feature": "Access-Aware Responses",
+          "description": "Responses must only include content users are authorized to view",
+          "acceptance": [
+            "Permission filtering",
+            "No data leakage",
+            "Context sanitization"
+          ]
+        },
+        {
+          "id": "5.12.5",
+          "feature": "Bilingual Q&A",
+          "description": "System must support English + Arabic queries & documents",
+          "acceptance": [
+            "Arabic question handling",
+            "English question handling",
+            "Mixed language support"
+          ]
+        },
+        {
+          "id": "5.12.6",
+          "feature": "LLM Pipeline",
+          "description": "Pipeline must assemble context + feed to LLM for answer generation",
+          "acceptance": [
+            "Context window management",
+            "Prompt engineering",
+            "Response formatting"
+          ]
+        },
+        {
+          "id": "5.12.7",
+          "feature": "Query Logging",
+          "description": "Logs must store user queries + anonymized feedback",
+          "acceptance": [
+            "Query history",
+            "Feedback collection",
+            "Analytics support"
+          ]
+        }
+      ],
+      "architecture": {
+        "steps": [
+          "1. Parse user intent",
+          "2. Generate search query",
+          "3. Hybrid retrieval (keyword + vector)",
+          "4. Permission filtering",
+          "5. Context assembly",
+          "6. LLM generation",
+          "7. Citation injection",
+          "8. Response delivery"
+        ]
+      }
+    },
+    {
+      "id": "5.13",
+      "name": "Edge / Offline Capture & Sync",
+      "priority": "medium",
+      "description": "Allow offline capture + OCR → queue → sync when online; store locally; verify identity; merge version if changed",
+      "businessPurpose": "Enable remote sites to capture & sync documents even without stable internet, ensuring continuity & secure ingestion.",
+      "requirements": [
+        {
+          "id": "5.13.1",
+          "feature": "Offline Capture",
+          "description": "Users must capture documents offline and data must auto-sync when online",
+          "acceptance": [
+            "Camera capture",
+            "File selection",
+            "Queue management"
+          ]
+        },
+        {
+          "id": "5.13.2",
+          "feature": "Local OCR",
+          "description": "OCR must run locally and keep extracted text pending sync",
+          "acceptance": [
+            "On-device OCR",
+            "Text extraction",
+            "Local storage"
+          ]
+        },
+        {
+          "id": "5.13.3",
+          "feature": "Sync Status",
+          "description": "Local DB must maintain state: Pending / Synced / Failed",
+          "acceptance": [
+            "Status tracking",
+            "Visual indicators",
+            "Error details"
+          ]
+        },
+        {
+          "id": "5.13.4",
+          "feature": "Retry Logic",
+          "description": "Sync must retry until success with backoff",
+          "acceptance": [
+            "Exponential backoff",
+            "Max retry limit",
+            "Manual retry option"
+          ]
+        },
+        {
+          "id": "5.13.5",
+          "feature": "Branch Validation",
+          "description": "Branch identity must be validated during sync",
+          "acceptance": [
+            "Device authentication",
+            "Branch ID verification",
+            "Location validation"
+          ]
+        },
+        {
+          "id": "5.13.6",
+          "feature": "Version Conflict",
+          "description": "If server version differs, new version created",
+          "acceptance": [
+            "Conflict detection",
+            "Version creation",
+            "Notification to user"
+          ]
+        },
+        {
+          "id": "5.13.7",
+          "feature": "Offline Audit",
+          "description": "Audit logs must capture offline + sync events",
+          "acceptance": [
+            "Local audit storage",
+            "Sync with audit events",
+            "Complete trail"
+          ]
+        },
+        {
+          "id": "5.13.8",
+          "feature": "PWA Support",
+          "description": "PWA support must allow install + offline work",
+          "acceptance": [
+            "Installable app",
+            "Service worker",
+            "Offline UI"
+          ]
+        },
+        {
+          "id": "5.13.9",
+          "feature": "Role Inheritance",
+          "description": "No new roles required — existing branch users can submit",
+          "acceptance": [
+            "Use existing roles",
+            "Seamless access",
+            "No additional setup"
+          ]
+        },
+        {
+          "id": "5.13.10",
+          "feature": "Data Consistency",
+          "description": "Data must remain consistent after sync",
+          "acceptance": [
+            "Integrity checks",
+            "Checksum validation",
+            "Duplicate detection"
+          ]
+        }
+      ],
+      "techStack": {
+        "storage": "IndexedDB",
+        "sync": "Background Sync API",
+        "ocr": "Tesseract.js or on-device model",
+        "pwa": "Service Worker + Manifest"
+      }
+    },
+    {
+      "id": "5.14",
+      "name": "Bank Statement Intelligence (BSI)",
+      "priority": "high",
+      "description": "Automate parsing of bank statements (PDF/Images/CSV/API), identify patterns, normalize transactions, detect salary, fraud, anomalies, compute RAG",
+      "businessPurpose": "Enable quick risk & income assessment without manual spreadsheet review.",
+      "requirements": [
+        {
+          "id": "5.14.1",
+          "feature": "Transaction Extraction",
+          "description": "System must extract transactions into a standardized structured format",
+          "acceptance": [
+            "Multi-format support (PDF, Image, CSV)",
+            "Structured JSON output",
+            "Field mapping"
+          ]
+        },
+        {
+          "id": "5.14.2",
+          "feature": "Transaction Classification",
+          "description": "System must classify key transactions (salary, fees, transfer, utility, etc.)",
+          "acceptance": [
+            "ML-based classification",
+            "Configurable categories",
+            "Confidence scores"
+          ]
+        },
+        {
+          "id": "5.14.3",
+          "feature": "Salary Detection",
+          "description": "System must detect recurring salary + compute monthly income",
+          "acceptance": [
+            "Pattern recognition",
+            "Average calculation",
+            "Variance detection"
+          ]
+        },
+        {
+          "id": "5.14.4",
+          "feature": "Anomaly Detection",
+          "description": "System must flag anomalies such as high withdrawals/irregularity",
+          "acceptance": [
+            "Threshold-based alerts",
+            "Pattern deviation detection",
+            "Risk scoring"
+          ]
+        },
+        {
+          "id": "5.14.5",
+          "feature": "Summary Generation",
+          "description": "System must compute month-wise debit/credit summary",
+          "acceptance": [
+            "Monthly aggregation",
+            "Visual charts",
+            "Export capability"
+          ]
+        },
+        {
+          "id": "5.14.6",
+          "feature": "RAG Score",
+          "description": "System must compute RAG score based on rules",
+          "acceptance": [
+            "Red/Amber/Green scoring",
+            "Configurable thresholds",
+            "Explanation provided"
+          ]
+        },
+        {
+          "id": "5.14.7",
+          "feature": "Underwriting Summary",
+          "description": "System must summarize insights for underwriting",
+          "acceptance": [
+            "Executive summary",
+            "Key metrics highlighted",
+            "Risk indicators"
+          ]
+        },
+        {
+          "id": "5.14.8",
+          "feature": "Q&A Interface",
+          "description": "System must answer simple questions using parsed data",
+          "acceptance": [
+            "Natural language queries",
+            "Data-driven answers",
+            "Source citation"
+          ]
+        },
+        {
+          "id": "5.14.9",
+          "feature": "Original Preservation",
+          "description": "Original statement must remain unchanged",
+          "acceptance": [
+            "Read-only original",
+            "Separate analysis layer",
+            "Version tracking"
+          ]
+        },
+        {
+          "id": "5.14.10",
+          "feature": "Export",
+          "description": "Output must be exportable (CSV/JSON)",
+          "acceptance": [
+            "Multiple format support",
+            "Complete data export",
+            "Filtered export"
+          ]
+        }
+      ],
+      "outputSchema": {
+        "StatementAnalysis": {
+          "accountNumber": "STRING",
+          "bankName": "STRING",
+          "periodStart": "DATE",
+          "periodEnd": "DATE",
+          "openingBalance": "DECIMAL",
+          "closingBalance": "DECIMAL",
+          "totalCredits": "DECIMAL",
+          "totalDebits": "DECIMAL",
+          "transactions": "Transaction[]",
+          "monthlySummary": "MonthlySummary[]",
+          "salaryInfo": "SalaryInfo",
+          "anomalies": "Anomaly[]",
+          "ragScore": "RAGScore"
+        }
+      }
+    },
+    {
+      "id": "5.15",
+      "name": "Document Upload Classification",
+      "priority": "high",
+      "description": "When a document is uploaded — either manually through UI or via API — the system must allow the user/API to specify the Document Source Type",
+      "businessPurpose": "Properly categorize and route documents based on their source for appropriate handling and linking.",
+      "requirements": [
+        {
+          "id": "5.15.1",
+          "feature": "Source Type Selection",
+          "description": "User/API can specify Document Source Type: Customer, Vendor, or Internal",
+          "acceptance": [
+            "Dropdown selection in UI",
+            "API parameter support",
+            "Mandatory field"
+          ]
+        },
+        {
+          "id": "5.15.2",
+          "feature": "Customer Document Handling",
+          "description": "If Customer is selected: enter Customer ID, system checks CRM, auto-tags document",
+          "acceptance": [
+            "Customer ID input",
+            "CRM lookup",
+            "Auto-tagging to customer",
+            "Customer page creation/update",
+            "Pull basic customer details"
+          ]
+        },
+        {
+          "id": "5.15.3",
+          "feature": "Vendor Document Handling",
+          "description": "If Vendor is selected: enter Vendor ID, system checks Vendor master/ERP",
+          "acceptance": [
+            "Vendor ID input",
+            "Vendor master lookup",
+            "Auto-tagging to vendor",
+            "Vendor page maintenance"
+          ]
+        },
+        {
+          "id": "5.15.4",
+          "feature": "Internal Document Handling",
+          "description": "If Internal is selected: user selects Department",
+          "acceptance": [
+            "Department selection",
+            "Auto-tagging to department",
+            "Department Account Page"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.16",
+      "name": "Document Type Folders & Approval Flow",
+      "priority": "high",
+      "description": "System will allow creation of Document Type Folders with configurable approval flows",
+      "businessPurpose": "Standardize document organization and ensure proper approval workflows.",
+      "requirements": [
+        {
+          "id": "5.16.1",
+          "feature": "Document Type Folders",
+          "description": "Create folders for document types (e.g., Passport, Invoice, Contract, PO, KYC)",
+          "acceptance": [
+            "Folder creation",
+            "Type assignment",
+            "Metadata templates"
+          ]
+        },
+        {
+          "id": "5.16.2",
+          "feature": "Approval Flow Assignment",
+          "description": "For each folder or individual document, user can assign Auto or Manual Approval Flow",
+          "acceptance": [
+            "Flow type selection",
+            "Per-folder default",
+            "Per-document override"
+          ]
+        },
+        {
+          "id": "5.16.3",
+          "feature": "Flow Modes",
+          "description": "Sequential Flow (one after another) or Parallel Flow (all at same time)",
+          "acceptance": [
+            "Sequential processing",
+            "Parallel processing",
+            "Mode selection"
+          ]
+        },
+        {
+          "id": "5.16.4",
+          "feature": "Auto Approval",
+          "description": "Predefined approver list triggered automatically",
+          "acceptance": [
+            "Single user approver",
+            "Group email (any member can approve)",
+            "Automatic notification"
+          ]
+        },
+        {
+          "id": "5.16.5",
+          "feature": "Manual Approval",
+          "description": "User manually adds individual approvers or group approvers with Sequential OR Parallel mode",
+          "acceptance": [
+            "Ad-hoc approver selection",
+            "Group selection",
+            "Mode specification"
+          ]
+        }
+      ],
+      "dataModel": {
+        "DocumentTypeFolder": {
+          "id": "UUID",
+          "name": "STRING",
+          "description": "TEXT",
+          "parentId": "UUID (FK, nullable)",
+          "defaultApprovalFlowId": "UUID (FK)",
+          "metadataTemplate": "JSONB",
+          "tenantId": "UUID (FK)"
+        },
+        "ApprovalFlow": {
+          "id": "UUID",
+          "name": "STRING",
+          "type": "ENUM (AUTO, MANUAL)",
+          "mode": "ENUM (SEQUENTIAL, PARALLEL)",
+          "steps": "ApprovalStep[]",
+          "tenantId": "UUID (FK)"
+        },
+        "ApprovalStep": {
+          "id": "UUID",
+          "flowId": "UUID (FK)",
+          "order": "INTEGER",
+          "approverType": "ENUM (USER, GROUP)",
+          "approverId": "UUID",
+          "required": "BOOLEAN"
+        }
+      }
+    },
+    {
+      "id": "5.17",
+      "name": "Document Overview Page",
+      "priority": "high",
+      "description": "Dedicated Document Overview Page showing all document details",
+      "businessPurpose": "Provide comprehensive view of document information in a single page.",
+      "requirements": [
+        {
+          "id": "5.17.1",
+          "feature": "Mandatory Information Display",
+          "description": "Show document preview, metadata, page count, tags, related documents, approval status, version history",
+          "acceptance": [
+            "Document thumbnail preview",
+            "Metadata (type, source, folder, tags)",
+            "Page count",
+            "Customer/Vendor/Department tags",
+            "Related documents (via Document ID link)",
+            "Approval status",
+            "Version history"
+          ]
+        },
+        {
+          "id": "5.17.2",
+          "feature": "Custom Metadata",
+          "description": "User should be able to add custom fields directly on the overview page",
+          "acceptance": [
+            "Add custom fields",
+            "Save to document",
+            "Available for search and listing"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.18",
+      "name": "Dashboard Listing & Dynamic Columns",
+      "priority": "medium",
+      "description": "Main listing page with customizable columns",
+      "businessPurpose": "Allow users to customize their view of document listings.",
+      "requirements": [
+        {
+          "id": "5.18.1",
+          "feature": "Column Customization",
+          "description": "User should be able to add or remove columns in the document table",
+          "acceptance": [
+            "Add columns",
+            "Remove columns",
+            "Reorder columns",
+            "Save preferences"
+          ]
+        },
+        {
+          "id": "5.18.2",
+          "feature": "Column Options",
+          "description": "Available columns must include system default fields and custom fields",
+          "acceptance": [
+            "System default fields available",
+            "Custom fields available",
+            "Only existing fields shown"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.19",
+      "name": "Document Sharing & Permission Levels",
+      "priority": "high",
+      "description": "When sharing a document, user must choose what the receiver is allowed to do",
+      "businessPurpose": "Provide granular control over document access when sharing.",
+      "permissionLevels": [
+        {
+          "level": "Owner",
+          "description": "Full control (edit, share, move, delete, change permissions)",
+          "useCase": "Document creator/admin"
+        },
+        {
+          "level": "Co-Owner",
+          "description": "Full control except permission changes",
+          "useCase": "Workflow collaborators"
+        },
+        {
+          "level": "Editor",
+          "description": "Edit content, metadata, upload new versions, comment",
+          "useCase": "Internal reviewers, compliance"
+        },
+        {
+          "level": "Commenter",
+          "description": "View + comment only",
+          "useCase": "Approvers, auditors"
+        },
+        {
+          "level": "Viewer (Download)",
+          "description": "Preview + Download",
+          "useCase": "Internal users"
+        },
+        {
+          "level": "Viewer (No Download)",
+          "description": "Preview only (no print/export)",
+          "useCase": "External reviewers"
+        },
+        {
+          "level": "Link-Only (Public Preview)",
+          "description": "Read-only via link, no audit, no metadata",
+          "useCase": "Public docs, external sharing"
+        },
+        {
+          "level": "Restricted (Masked View)",
+          "description": "View only redacted/PII-masked version",
+          "useCase": "Vendors, 3rd-party auditors"
+        },
+        {
+          "level": "No Access",
+          "description": "Cannot view or list",
+          "useCase": "Default"
+        }
+      ]
+    },
+    {
+      "id": "5.20",
+      "name": "User Roles & Access Control",
+      "priority": "critical",
+      "description": "System must allow creation of User Roles with configurable permissions",
+      "businessPurpose": "Enable flexible role-based access management like CRM systems.",
+      "requirements": [
+        {
+          "id": "5.20.1",
+          "feature": "Role Creation",
+          "description": "Admin can create roles with multi-select permissions (feature list approach)",
+          "acceptance": [
+            "Create custom roles",
+            "Multi-select permission assignment",
+            "Role description"
+          ]
+        },
+        {
+          "id": "5.20.2",
+          "feature": "Permission Inheritance",
+          "description": "Users mapped to role inherit those permissions",
+          "acceptance": [
+            "Automatic permission application",
+            "Multi-role support",
+            "Permission aggregation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.21",
+      "name": "Custom Metadata Fields",
+      "priority": "medium",
+      "description": "Users must be able to create Custom Metadata Fields at system level",
+      "businessPurpose": "Allow flexible metadata configuration for different document types.",
+      "requirements": [
+        {
+          "id": "5.21.1",
+          "feature": "Field Creation",
+          "description": "Create custom fields at system level",
+          "acceptance": [
+            "Field name",
+            "Field type (text, number, date, dropdown, etc.)",
+            "Required/optional",
+            "Validation rules"
+          ]
+        },
+        {
+          "id": "5.21.2",
+          "feature": "Field Availability",
+          "description": "Custom fields available: During upload, On overview page, In dashboard listing, In search and filters",
+          "acceptance": [
+            "Upload form integration",
+            "Overview page display",
+            "Listing column option",
+            "Search filter option"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5.22",
+      "name": "PII Detection & Protection Layer",
+      "priority": "critical",
+      "description": "Comprehensive PII detection, masking, and protection throughout document lifecycle",
+      "businessPurpose": "Automatically detect and protect PII to ensure data privacy & compliance.",
+      "components": [
+        {
+          "name": "PII Detection Layer",
+          "description": "Detect sensitive fields using regex + optional AI",
+          "output": "On ingest, auto-detect PII values (PAN/Aadhaar/IBAN/phone/email) and store as typed PII fields"
+        },
+        {
+          "name": "Pattern Master",
+          "description": "Allow admin to define entity patterns per tenant",
+          "output": "Admin can enable/disable/update PII patterns; changes apply to future ingests"
+        },
+        {
+          "name": "Policy Engine",
+          "description": "Apply actions (Mask/Redact/ACL/Encrypt) based on policy",
+          "output": "PII fields apply configured action based on role + policy"
+        },
+        {
+          "name": "Lifecycle Enforcement",
+          "description": "Apply PII actions at ingest → store → view → export",
+          "output": "Value masked at ingest remains masked on view and redacted on export for unauthorized users"
+        },
+        {
+          "name": "Audit Logging",
+          "description": "Track redaction, unmask, export events",
+          "output": "Each mask/unmask/export event logs user, time, field, and action"
+        }
+      ],
+      "actions": [
+        {
+          "action": "Mask",
+          "description": "Mask characters partially",
+          "output": "On unauthorized view, PII is formatted as ****{last4}"
+        },
+        {
+          "action": "Redact",
+          "description": "Remove PII during export",
+          "output": "On export, unauthorized users receive [REDACTED] instead of PII"
+        },
+        {
+          "action": "Encrypt-at-Rest",
+          "description": "Encrypt fields at rest",
+          "output": "PII fields stored encrypted (AES-256) and decrypted only for authorized use"
+        },
+        {
+          "action": "Access Control",
+          "description": "Restrict view of PII",
+          "output": "Only users with PII_UNMASK permission can view clear PII"
+        }
+      ],
+      "keyOutcomes": [
+        "All supported PII patterns auto-detected + protected per policy",
+        "Tenants can enable/disable patterns without code changes",
+        "Same PII handling across ingest → view → export for a given role",
+        "Export logs + unmask logs support audit + compliance review"
+      ]
+    },
+    {
+      "id": "5.23",
+      "name": "Deployment & Licensing",
+      "priority": "critical",
+      "description": "Production deployment with cloud/on-premise support, tenancy model, and license key management",
+      "businessPurpose": "Enable flexible deployment options with proper licensing control.",
+      "requirements": [
+        {
+          "id": "5.23.1",
+          "feature": "Deployment Options",
+          "description": "Support cloud (Hostinger, AWS, Azure, Google Cloud) and on-premise deployment",
+          "acceptance": [
+            "Docker containerization",
+            "Kubernetes support",
+            "On-premise installation scripts"
+          ]
+        },
+        {
+          "id": "5.23.2",
+          "feature": "Tenancy Model",
+          "description": "Multi-tenant architecture with proper isolation",
+          "acceptance": [
+            "DB-per-tenant option",
+            "Schema-per-tenant option",
+            "Row-level tenancy option"
+          ]
+        },
+        {
+          "id": "5.23.3",
+          "feature": "License Key Generation",
+          "description": "License key mechanism for client deployment with annual renewal",
+          "acceptance": [
+            "Central license generation platform",
+            "Annual renewal requirement",
+            "30-day grace period",
+            "Platform lock on expiry",
+            "Internet connection required for key generation",
+            "Tamper detection with full platform lock"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "6.0",
+      "name": "Security Controls",
+      "priority": "critical",
+      "description": "Enterprise-level security controls for the platform",
+      "sections": [
+        {
+          "id": "6.1",
+          "name": "Transport & Network Security",
+          "requirements": [
+            {
+              "feature": "TLS/HTTPS Enforcement",
+              "details": [
+                "All communication over TLS 1.2+ / TLS 1.3",
+                "Strong cipher suites: AES-256-GCM or CHACHA20-POLY1305"
+              ]
+            },
+            {
+              "feature": "Perfect Forward Secrecy (PFS)",
+              "details": [
+                "Ephemeral key exchange (ECDHE)",
+                "Compromised keys cannot decrypt historical traffic"
+              ]
+            },
+            {
+              "feature": "HSTS",
+              "details": [
+                "Strict Transport Security header",
+                "Prevent protocol downgrade attacks"
+              ]
+            },
+            {
+              "feature": "WAF Integration",
+              "details": [
+                "IP reputation checks",
+                "Rate limiting",
+                "Request pattern analysis",
+                "Block SQLi, XSS, path traversal, bot activity"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6.2",
+          "name": "Authentication & Authorization",
+          "requirements": [
+            {
+              "feature": "Centralized Authentication",
+              "details": [
+                "OAuth2 / OIDC / SAML-based SSO",
+                "Enterprise Identity Provider federation"
+              ]
+            },
+            {
+              "feature": "Multi-Factor Authentication (MFA)",
+              "details": [
+                "Required for admin and privileged roles",
+                "TOTP, SMS, or hardware token support"
+              ]
+            },
+            {
+              "feature": "Role-Based Access Control (RBAC)",
+              "details": [
+                "Fine-grained permissions",
+                "Control access to documents, modules, features, workflows, metadata"
+              ]
+            },
+            {
+              "feature": "Document-Level ACLs",
+              "details": [
+                "View, Download, Annotate, Update Metadata",
+                "Share / Revoke Access, Delete / Archive",
+                "Maker-Checker approval paths",
+                "Restrict sensitive categories to security groups"
+              ]
+            },
+            {
+              "feature": "Session Security",
+              "details": [
+                "Secure cookies",
+                "Idle timeouts",
+                "Device/IP validation",
+                "Session invalidation on suspicious activity"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6.3",
+          "name": "Data Security & Privacy Controls",
+          "requirements": [
+            {
+              "feature": "Encryption at Rest",
+              "details": [
+                "AES-256 for all stored data",
+                "Cloud KMS, on-prem HSM, or envelope encryption"
+              ]
+            },
+            {
+              "feature": "Encryption in Transit & In Use",
+              "details": [
+                "Sensitive fields encrypted/masked when displayed or transmitted",
+                "Only privileged roles access decrypted content"
+              ]
+            },
+            {
+              "feature": "Document Sanitization",
+              "details": [
+                "File type & MIME validation",
+                "Malware scanning (ClamAV or enterprise AV)",
+                "Size & format checks",
+                "Reject executable or suspicious content"
+              ]
+            },
+            {
+              "feature": "PII Hardening",
+              "details": [
+                "PII tagged, masked, and protected by policy",
+                "Role-based visibility"
+              ]
+            },
+            {
+              "feature": "Secrets Management",
+              "details": [
+                "All secrets in Vault/KMS",
+                "No secrets in code, environment files, or logs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6.4",
+          "name": "Application Security",
+          "requirements": [
+            {
+              "feature": "Input Validation",
+              "details": [
+                "Whitelist-based validation",
+                "All form inputs, API payloads, internal messages"
+              ]
+            },
+            {
+              "feature": "Anti-XSS, Anti-CSRF, Anti-Injection",
+              "details": [
+                "Framework-level protection",
+                "Server-side validation"
+              ]
+            },
+            {
+              "feature": "Secure Coding (OWASP Top 10)",
+              "details": [
+                "Mandatory code reviews",
+                "SAST/SCA scans",
+                "Dependency vulnerability checks"
+              ]
+            },
+            {
+              "feature": "Document Integrity",
+              "details": [
+                "SHA-256/SHA-512 hashing",
+                "Tampering detection",
+                "Immutable checksums"
+              ]
+            },
+            {
+              "feature": "Rate Limiting",
+              "details": [
+                "Protection against brute force",
+                "Credential stuffing prevention",
+                "High-volume scraping prevention"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6.5",
+          "name": "Audit Logging & Monitoring",
+          "requirements": [
+            {
+              "feature": "Immutable Audit Trail",
+              "details": [
+                "Log user identity, role, document ID",
+                "Operation type, timestamp, IP/device fingerprint",
+                "Previous vs new values",
+                "Append-only logs"
+              ]
+            },
+            {
+              "feature": "Access Logging",
+              "details": [
+                "Views, Downloads, Metadata updates",
+                "Sharing actions, Failed access attempts"
+              ]
+            },
+            {
+              "feature": "Tamper-Evident Storage",
+              "details": [
+                "Separate storage from operational data",
+                "Hashing and secure timestamping",
+                "ELK, Splunk, or SIEM integration"
+              ]
+            },
+            {
+              "feature": "Behavioral Alerts",
+              "details": [
+                "Abnormal download volume",
+                "Repeated restricted folder access",
+                "Activity outside work hours",
+                "Large-scale exports",
+                "Suspicious authentication patterns"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "6.6",
+          "name": "Isolation & Tenancy Security",
+          "requirements": [
+            {
+              "feature": "Per-Tenant Isolation",
+              "details": [
+                "DB-per-tenant (highest isolation)",
+                "Schema-per-tenant",
+                "Row-level tenancy with cryptographic tenant IDs"
+              ]
+            },
+            {
+              "feature": "Tenant-Scoped Encryption Keys",
+              "details": [
+                "Separate encryption keys per tenant (CMK/BYOK)",
+                "KMS/HSM management"
+              ]
+            },
+            {
+              "feature": "Access Control Segmentation",
+              "details": [
+                "Users, roles, workflows, documents isolated per tenant",
+                "Audit logs isolated per tenant"
+              ]
+            },
+            {
+              "feature": "No Cross-Tenant Leakage",
+              "details": [
+                "Tenant ID validation at every layer",
+                "API, document fetch, background processing"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "techStack": {
+    "backend": {
+      "runtime": "Node.js 20+",
+      "framework": "NestJS or Express",
+      "language": "TypeScript",
+      "orm": "Prisma or TypeORM"
+    },
+    "frontend": {
+      "framework": "React 18+ or Next.js 14+",
+      "language": "TypeScript",
+      "stateManagement": "Zustand or Redux Toolkit",
+      "ui": "Tailwind CSS + shadcn/ui"
+    },
+    "database": {
+      "primary": "PostgreSQL 15+",
+      "cache": "Redis",
+      "search": "OpenSearch/Elasticsearch",
+      "vector": "pgvector"
+    },
+    "storage": {
+      "files": "S3-compatible (AWS S3, MinIO)",
+      "encryption": "AES-256"
+    },
+    "messaging": {
+      "queue": "RabbitMQ or AWS SQS",
+      "events": "Redis Pub/Sub or Kafka"
+    },
+    "ai": {
+      "ocr": "Tesseract, Azure Document Intelligence, or AWS Textract",
+      "llm": "OpenAI GPT-4 or Claude API",
+      "embeddings": "multilingual-e5-large or OpenAI embeddings"
+    },
+    "monitoring": {
+      "logging": "ELK Stack or Datadog",
+      "metrics": "Prometheus + Grafana",
+      "tracing": "Jaeger or AWS X-Ray"
+    },
+    "security": {
+      "secrets": "HashiCorp Vault or AWS Secrets Manager",
+      "waf": "AWS WAF or Cloudflare",
+      "scanning": "ClamAV"
+    }
+  },
+  "implementationOrder": [
+    {
+      "phase": 1,
+      "name": "Core Infrastructure",
+      "modules": ["User Roles & Access Control", "Document Upload Classification", "Document Overview Page"],
+      "duration": "4-6 weeks"
+    },
+    {
+      "phase": 2,
+      "name": "Document Management Core",
+      "modules": ["Versioning Module", "Document Lifecycle Management", "Document Type Folders & Approval Flow"],
+      "duration": "6-8 weeks"
+    },
+    {
+      "phase": 3,
+      "name": "Compliance & Security",
+      "modules": ["Records Management (WORM)", "DLP & PII Detection", "PII Detection & Protection Layer", "Security Controls"],
+      "duration": "8-10 weeks"
+    },
+    {
+      "phase": 4,
+      "name": "Governance & Audit",
+      "modules": ["Retention & Policy Engine", "Immutable Audit Ledger", "Legal Hold & E-Discovery"],
+      "duration": "6-8 weeks"
+    },
+    {
+      "phase": 5,
+      "name": "Search & Intelligence",
+      "modules": ["Vector Search & Semantic Retrieval", "AI-Augmented Search & Q&A", "Taxonomy & Auto-Tagging"],
+      "duration": "6-8 weeks"
+    },
+    {
+      "phase": 6,
+      "name": "Analytics & Advanced Features",
+      "modules": ["Governance & Analytics", "Bank Statement Intelligence", "Dashboard Listing & Dynamic Columns"],
+      "duration": "6-8 weeks"
+    },
+    {
+      "phase": 7,
+      "name": "Edge & Deployment",
+      "modules": ["Edge / Offline Capture & Sync", "Deployment & Licensing"],
+      "duration": "4-6 weeks"
+    }
+  ]
+}

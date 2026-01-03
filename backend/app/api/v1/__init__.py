@@ -2,7 +2,8 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth, users, documents, tenants, workflows, pii,
-    compliance, search, chat, analytics, notifications, bsi, offline
+    compliance, search, chat, analytics, notifications, bsi, offline,
+    entities, versions, sharing, license, config
 )
 
 api_router = APIRouter()
@@ -23,3 +24,10 @@ api_router.include_router(analytics.router)  # Has its own prefix
 api_router.include_router(notifications.router)  # Has its own prefix
 api_router.include_router(bsi.router)  # Has its own prefix
 api_router.include_router(offline.router)  # Has its own prefix
+
+# Entity management
+api_router.include_router(entities.router, prefix="/entities", tags=["Entities"])
+api_router.include_router(versions.router, tags=["Versions"])
+api_router.include_router(sharing.router, tags=["Sharing"])
+api_router.include_router(license.router)  # Has its own prefix
+api_router.include_router(config.router)  # Config options

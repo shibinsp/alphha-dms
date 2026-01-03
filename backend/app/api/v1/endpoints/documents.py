@@ -614,6 +614,38 @@ async def download_document(
         )
 
 
+@router.get("/{document_id}/preview")
+async def preview_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview document file (inline display).
+    """
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.tenant_id == tenant.id
+    ).first()
+
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not validate_file_path(document.file_path):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not os.path.exists(document.file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Return file for inline display
+    return FileResponse(
+        document.file_path,
+        media_type=document.mime_type,
+        headers={"Content-Disposition": f"inline; filename={sanitize_filename(document.file_name)}"}
+    )
+
+
 # Version endpoints
 @router.get("/{document_id}/versions", response_model=List[VersionResponse])
 async def list_versions(

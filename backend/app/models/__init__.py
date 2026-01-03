@@ -9,8 +9,11 @@ from app.models.document import (
     SourceType,
     Classification,
     LifecycleStatus,
-    OCRStatus
+    OCRStatus,
+    FieldType,
+    ApprovalFlowType
 )
+from app.models.config import ConfigOption
 from app.models.version import DocumentVersion, DocumentLock
 from app.models.audit import AuditEvent, AuditRoot, AuditVerification
 from app.models.workflow import (
@@ -106,6 +109,7 @@ from app.models.offline import (
     SyncStatus,
     SyncOperation
 )
+from app.models.entities import Customer, Vendor, License
 
 __all__ = [
     # Tenant
@@ -125,6 +129,10 @@ __all__ = [
     "Classification",
     "LifecycleStatus",
     "OCRStatus",
+    "FieldType",
+    "ApprovalFlowType",
+    # Config
+    "ConfigOption",
     # Versioning
     "DocumentVersion",
     "DocumentLock",
@@ -214,4 +222,8 @@ __all__ = [
     "SyncConflict",
     "SyncStatus",
     "SyncOperation",
+    # Entities
+    "Customer",
+    "Vendor",
+    "License",
 ]

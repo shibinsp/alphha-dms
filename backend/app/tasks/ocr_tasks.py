@@ -1,10 +1,12 @@
 import os
 import logging
+import asyncio
 from typing import Optional
 
 from app.tasks import celery_app
 from app.core.database import SessionLocal
 from app.models.document import Document, OCRStatus
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 @celery_app.task(bind=True, max_retries=3)
 def process_ocr(self, document_id: str) -> dict:
     """
-    Process OCR for a document.
+    Process OCR for a document using Mistral AI or fallback to Tesseract.
     """
     db = SessionLocal()
     try:
@@ -33,28 +35,48 @@ def process_ocr(self, document_id: str) -> dict:
             return {"status": "error", "message": "File not found"}
 
         try:
-            # Extract text based on file type
             mime_type = document.mime_type
+            
+            # Read file content
+            with open(file_path, "rb") as f:
+                file_content = f.read()
+            
+            # Try Mistral AI first if API key is configured
+            if settings.MISTRAL_API_KEY and mime_type.startswith("image/"):
+                result = asyncio.run(process_with_mistral(file_content, document.file_name, mime_type))
+                if result.get("success"):
+                    document.ocr_text = result.get("text", "")
+                    document.ocr_confidence = result.get("confidence", 0)
+                    document.extracted_metadata = {
+                        "document_type": result.get("document_type"),
+                        "language": result.get("language"),
+                        "entities": result.get("entities", {}),
+                        "metadata": result.get("metadata", {}),
+                        "confidence": result.get("confidence", 0)
+                    }
+                    document.ocr_status = OCRStatus.COMPLETED
+                    db.commit()
+                    logger.info(f"Mistral OCR completed for document {document_id}")
+                    return {"status": "success", "method": "mistral", "text_length": len(document.ocr_text)}
+            
+            # Fallback to traditional OCR
             text = ""
-
             if mime_type == "application/pdf":
                 text = extract_pdf_text(file_path)
             elif mime_type.startswith("image/"):
                 text = extract_image_text(file_path)
             else:
-                # For other types, skip OCR
                 document.ocr_status = OCRStatus.COMPLETED
                 document.ocr_text = ""
                 db.commit()
                 return {"status": "success", "message": "No OCR needed for this file type"}
 
-            # Update document with OCR text
             document.ocr_text = text
             document.ocr_status = OCRStatus.COMPLETED
             db.commit()
 
             logger.info(f"OCR completed for document {document_id}")
-            return {"status": "success", "text_length": len(text)}
+            return {"status": "success", "method": "tesseract", "text_length": len(text)}
 
         except Exception as e:
             logger.error(f"OCR failed for document {document_id}: {str(e)}")
@@ -64,6 +86,16 @@ def process_ocr(self, document_id: str) -> dict:
 
     finally:
         db.close()
+
+
+async def process_with_mistral(file_content: bytes, file_name: str, mime_type: str) -> dict:
+    """Process document with Mistral AI for OCR and metadata extraction."""
+    try:
+        from app.services.mistral_ocr_service import MistralOCRService
+        return await MistralOCRService.extract_text_and_metadata(file_content, file_name, mime_type)
+    except Exception as e:
+        logger.error(f"Mistral OCR error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 def extract_pdf_text(file_path: str) -> str:

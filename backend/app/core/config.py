@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Mistral AI
+    MISTRAL_API_KEY: Optional[str] = "Jh5S3cDgj09pyJgXzUXiOGxWukB8BSY2"
+    MISTRAL_MODEL: str = "mistral-small-latest"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
