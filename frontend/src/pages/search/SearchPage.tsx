@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Card,
@@ -12,6 +12,8 @@ import {
   Empty,
   Spin,
   message,
+  Modal,
+  Form,
 } from 'antd'
 import {
   SearchOutlined,
@@ -37,6 +39,7 @@ const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
   const [searchType, setSearchType] = useState<'keyword' | 'semantic' | 'hybrid'>('hybrid')
   const [filters, setFilters] = useState<{
     source_type?: string
@@ -44,18 +47,36 @@ const SearchPage: React.FC = () => {
     lifecycle_status?: string
   }>({})
   const [showFilters, setShowFilters] = useState(false)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [form] = Form.useForm()
+  const debounceTimer = useRef<NodeJS.Timeout>()
 
-  // Search results
+  // Debounce the search query
+  useEffect(() => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 300)
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+    }
+  }, [query])
+
+  // Search results - uses debounced query
   const {
     data: searchResults,
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['search', query, searchType, filters],
+    queryKey: ['search', debouncedQuery, searchType, filters],
     queryFn: async () => {
-      if (!query.trim()) return null
+      if (!debouncedQuery.trim()) return null
       const params = new URLSearchParams()
-      params.set('query', query)
+      params.set('query', debouncedQuery)
       params.set('search_type', searchType)
       if (filters.source_type) params.set('source_type', filters.source_type)
       if (filters.document_type_id) params.set('document_type_id', filters.document_type_id)
@@ -64,7 +85,7 @@ const SearchPage: React.FC = () => {
       const response = await api.get(`/search?${params.toString()}`)
       return response.data
     },
-    enabled: !!query.trim(),
+    enabled: !!debouncedQuery.trim(),
   })
 
   // Recent searches
@@ -226,10 +247,7 @@ const SearchPage: React.FC = () => {
                 </Text>
                 <Button
                   icon={<StarOutlined />}
-                  onClick={() => {
-                    const name = prompt('Enter a name for this saved search:')
-                    if (name) saveSearchMutation.mutate(name)
-                  }}
+                  onClick={() => setSaveModalOpen(true)}
                 >
                   Save Search
                 </Button>
@@ -345,6 +363,40 @@ const SearchPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Save Search Modal */}
+      <Modal
+        title="Save Search"
+        open={saveModalOpen}
+        onCancel={() => {
+          setSaveModalOpen(false)
+          form.resetFields()
+        }}
+        onOk={() => {
+          form.validateFields().then((values) => {
+            saveSearchMutation.mutate(values.name, {
+              onSuccess: () => {
+                setSaveModalOpen(false)
+                form.resetFields()
+              },
+            })
+          })
+        }}
+        confirmLoading={saveSearchMutation.isPending}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="name"
+            label="Search Name"
+            rules={[{ required: true, message: 'Please enter a name for this search' }]}
+          >
+            <Input placeholder="e.g., All pending contracts" />
+          </Form.Item>
+          <Text type="secondary">
+            Query: "{query}" | Type: {searchType}
+          </Text>
+        </Form>
+      </Modal>
     </div>
   )
 }

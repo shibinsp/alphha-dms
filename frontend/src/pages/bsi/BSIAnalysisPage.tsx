@@ -24,7 +24,7 @@ import {
   ArrowUpOutlined,
   ArrowDownOutlined,
 } from '@ant-design/icons'
-import { api } from '@/services/api'
+import api from '@/services/api'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -109,7 +109,7 @@ const BSIAnalysisPage: React.FC = () => {
 
   const categorizeMutation = useMutation({
     mutationFn: ({ transactionId, category }: { transactionId: string; category: string }) =>
-      api.post(`/bsi/transactions/${transactionId}/categorize?category=${category}`),
+      api.post(`/bsi/transactions/${transactionId}/categorize`, { category }),
     onSuccess: () => {
       message.success('Transaction categorized')
       queryClient.invalidateQueries({ queryKey: ['bsi', 'transactions'] })
@@ -316,178 +316,192 @@ const BSIAnalysisPage: React.FC = () => {
         </Upload>
       </div>
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <Tabs.TabPane tab="Statements" key="statements">
-          {loadingStatements ? (
-            <Spin />
-          ) : statements?.length ? (
-            <Table
-              dataSource={statements}
-              columns={statementColumns}
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-            />
-          ) : (
-            <Empty description="No bank statements uploaded yet" />
-          )}
-        </Tabs.TabPane>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'statements',
+            label: 'Statements',
+            children: loadingStatements ? (
+              <Spin />
+            ) : statements?.length ? (
+              <Table
+                dataSource={statements}
+                columns={statementColumns}
+                rowKey="id"
+                pagination={{ pageSize: 10 }}
+              />
+            ) : (
+              <Empty description="No bank statements uploaded yet" />
+            ),
+          },
+          {
+            key: 'transactions',
+            label: 'Transactions',
+            disabled: !selectedStatement,
+            children: (
+              <>
+                {selectedStatementData && (
+                  <div className="mb-4">
+                    <Row gutter={[16, 16]}>
+                      <Col xs={24} sm={8}>
+                        <Card size="small">
+                          <Statistic
+                            title="Opening Balance"
+                            value={selectedStatementData.opening_balance}
+                            prefix="$"
+                          />
+                        </Card>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Card size="small">
+                          <Statistic
+                            title="Closing Balance"
+                            value={selectedStatementData.closing_balance}
+                            prefix="$"
+                          />
+                        </Card>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Card size="small">
+                          <Statistic
+                            title="Net Change"
+                            value={selectedStatementData.closing_balance - selectedStatementData.opening_balance}
+                            prefix="$"
+                            valueStyle={{
+                              color:
+                                selectedStatementData.closing_balance >= selectedStatementData.opening_balance
+                                  ? '#52c41a'
+                                  : '#ff4d4f',
+                            }}
+                          />
+                        </Card>
+                      </Col>
+                    </Row>
+                  </div>
+                )}
 
-        <Tabs.TabPane tab="Transactions" key="transactions" disabled={!selectedStatement}>
-          {selectedStatementData && (
-            <div className="mb-4">
+                {loadingTransactions ? (
+                  <Spin />
+                ) : transactions?.length ? (
+                  <Table
+                    dataSource={transactions}
+                    columns={transactionColumns}
+                    rowKey="id"
+                    pagination={{ pageSize: 20 }}
+                  />
+                ) : (
+                  <Empty description="Select a statement to view transactions" />
+                )}
+              </>
+            ),
+          },
+          {
+            key: 'analysis',
+            label: 'Analysis',
+            disabled: !selectedStatement,
+            children: loadingAnalysis ? (
+              <Spin />
+            ) : analysis ? (
               <Row gutter={[16, 16]}>
-                <Col xs={24} sm={8}>
-                  <Card size="small">
-                    <Statistic
-                      title="Opening Balance"
-                      value={selectedStatementData.opening_balance}
-                      prefix="$"
-                    />
+                <Col xs={24} lg={12}>
+                  <Card title="Cash Flow Analysis">
+                    <Space direction="vertical" className="w-full">
+                      <div className="flex justify-between">
+                        <Text>Total Inflow</Text>
+                        <Text type="success" strong>
+                          +{analysis.cash_flow?.total_inflow?.toLocaleString() || 0}
+                        </Text>
+                      </div>
+                      <div className="flex justify-between">
+                        <Text>Total Outflow</Text>
+                        <Text type="danger" strong>
+                          -{analysis.cash_flow?.total_outflow?.toLocaleString() || 0}
+                        </Text>
+                      </div>
+                      <div className="flex justify-between border-t pt-2">
+                        <Text strong>Net Change</Text>
+                        <Text
+                          type={
+                            (analysis.cash_flow?.net_change || 0) >= 0 ? 'success' : 'danger'
+                          }
+                          strong
+                        >
+                          {analysis.cash_flow?.net_change?.toLocaleString() || 0}
+                        </Text>
+                      </div>
+                    </Space>
                   </Card>
                 </Col>
-                <Col xs={24} sm={8}>
-                  <Card size="small">
-                    <Statistic
-                      title="Closing Balance"
-                      value={selectedStatementData.closing_balance}
-                      prefix="$"
-                    />
+
+                <Col xs={24} lg={12}>
+                  <Card title="Expense Breakdown">
+                    {analysis.expense_breakdown?.map((cat: CategorySummary) => (
+                      <div key={cat.category} className="mb-2">
+                        <div className="flex justify-between mb-1">
+                          <Tag color={getCategoryColor(cat.category)}>{cat.category}</Tag>
+                          <Text>{cat.total_amount.toLocaleString()}</Text>
+                        </div>
+                        <Progress
+                          percent={cat.percentage}
+                          size="small"
+                          showInfo={false}
+                        />
+                      </div>
+                    )) || <Empty description="No expense data" />}
                   </Card>
                 </Col>
-                <Col xs={24} sm={8}>
-                  <Card size="small">
-                    <Statistic
-                      title="Net Change"
-                      value={selectedStatementData.closing_balance - selectedStatementData.opening_balance}
-                      prefix="$"
-                      valueStyle={{
-                        color:
-                          selectedStatementData.closing_balance >= selectedStatementData.opening_balance
-                            ? '#52c41a'
-                            : '#ff4d4f',
-                      }}
-                    />
+
+                <Col xs={24}>
+                  <Card title="Anomalies Detected">
+                    {analysis.anomalies?.length ? (
+                      <Table
+                        dataSource={analysis.anomalies}
+                        columns={[
+                          {
+                            title: 'Type',
+                            dataIndex: 'anomaly_type',
+                            key: 'anomaly_type',
+                          },
+                          {
+                            title: 'Description',
+                            dataIndex: 'description',
+                            key: 'description',
+                          },
+                          {
+                            title: 'Severity',
+                            dataIndex: 'severity',
+                            key: 'severity',
+                            render: (severity: string) => (
+                              <Tag color={severity === 'high' ? 'red' : 'orange'}>
+                                {severity}
+                              </Tag>
+                            ),
+                          },
+                          {
+                            title: 'Amount',
+                            dataIndex: 'amount',
+                            key: 'amount',
+                            render: (amount: number) => amount.toLocaleString(),
+                          },
+                        ]}
+                        rowKey="transaction_id"
+                        pagination={false}
+                        size="small"
+                      />
+                    ) : (
+                      <Empty description="No anomalies detected" />
+                    )}
                   </Card>
                 </Col>
               </Row>
-            </div>
-          )}
-
-          {loadingTransactions ? (
-            <Spin />
-          ) : transactions?.length ? (
-            <Table
-              dataSource={transactions}
-              columns={transactionColumns}
-              rowKey="id"
-              pagination={{ pageSize: 20 }}
-            />
-          ) : (
-            <Empty description="Select a statement to view transactions" />
-          )}
-        </Tabs.TabPane>
-
-        <Tabs.TabPane tab="Analysis" key="analysis" disabled={!selectedStatement}>
-          {loadingAnalysis ? (
-            <Spin />
-          ) : analysis ? (
-            <Row gutter={[16, 16]}>
-              <Col xs={24} lg={12}>
-                <Card title="Cash Flow Analysis">
-                  <Space direction="vertical" className="w-full">
-                    <div className="flex justify-between">
-                      <Text>Total Inflow</Text>
-                      <Text type="success" strong>
-                        +{analysis.cash_flow?.total_inflow?.toLocaleString() || 0}
-                      </Text>
-                    </div>
-                    <div className="flex justify-between">
-                      <Text>Total Outflow</Text>
-                      <Text type="danger" strong>
-                        -{analysis.cash_flow?.total_outflow?.toLocaleString() || 0}
-                      </Text>
-                    </div>
-                    <div className="flex justify-between border-t pt-2">
-                      <Text strong>Net Change</Text>
-                      <Text
-                        type={
-                          (analysis.cash_flow?.net_change || 0) >= 0 ? 'success' : 'danger'
-                        }
-                        strong
-                      >
-                        {analysis.cash_flow?.net_change?.toLocaleString() || 0}
-                      </Text>
-                    </div>
-                  </Space>
-                </Card>
-              </Col>
-
-              <Col xs={24} lg={12}>
-                <Card title="Expense Breakdown">
-                  {analysis.expense_breakdown?.map((cat: CategorySummary) => (
-                    <div key={cat.category} className="mb-2">
-                      <div className="flex justify-between mb-1">
-                        <Tag color={getCategoryColor(cat.category)}>{cat.category}</Tag>
-                        <Text>{cat.total_amount.toLocaleString()}</Text>
-                      </div>
-                      <Progress
-                        percent={cat.percentage}
-                        size="small"
-                        showInfo={false}
-                      />
-                    </div>
-                  )) || <Empty description="No expense data" />}
-                </Card>
-              </Col>
-
-              <Col xs={24}>
-                <Card title="Anomalies Detected">
-                  {analysis.anomalies?.length ? (
-                    <Table
-                      dataSource={analysis.anomalies}
-                      columns={[
-                        {
-                          title: 'Type',
-                          dataIndex: 'anomaly_type',
-                          key: 'anomaly_type',
-                        },
-                        {
-                          title: 'Description',
-                          dataIndex: 'description',
-                          key: 'description',
-                        },
-                        {
-                          title: 'Severity',
-                          dataIndex: 'severity',
-                          key: 'severity',
-                          render: (severity: string) => (
-                            <Tag color={severity === 'high' ? 'red' : 'orange'}>
-                              {severity}
-                            </Tag>
-                          ),
-                        },
-                        {
-                          title: 'Amount',
-                          dataIndex: 'amount',
-                          key: 'amount',
-                          render: (amount: number) => amount.toLocaleString(),
-                        },
-                      ]}
-                      rowKey="transaction_id"
-                      pagination={false}
-                      size="small"
-                    />
-                  ) : (
-                    <Empty description="No anomalies detected" />
-                  )}
-                </Card>
-              </Col>
-            </Row>
-          ) : (
-            <Empty description="Select a statement to view analysis" />
-          )}
-        </Tabs.TabPane>
-      </Tabs>
+            ) : (
+              <Empty description="Select a statement to view analysis" />
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

@@ -29,7 +29,7 @@ import {
   SettingOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/services/api'
+import api from '@/services/api'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -187,30 +187,116 @@ const NotificationsPage: React.FC = () => {
         </Space>
       </div>
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <Tabs.TabPane
-          tab={
-            <span>
-              All <Badge count={notifications.length} showZero />
-            </span>
-          }
-          key="all"
-        >
-          {isLoading ? (
-            <Spin />
-          ) : notifications.length ? (
-            <List
-              itemLayout="horizontal"
-              dataSource={notifications}
-              renderItem={(item: Notification) => (
-                <List.Item
-                  className={`cursor-pointer hover:bg-gray-50 ${
-                    !item.is_read ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => handleNotificationClick(item)}
-                  actions={[
-                    !item.is_read && (
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'all',
+            label: (
+              <span>
+                All <Badge count={notifications.length} showZero />
+              </span>
+            ),
+            children: isLoading ? (
+              <Spin />
+            ) : notifications.length ? (
+              <List
+                itemLayout="horizontal"
+                dataSource={notifications}
+                renderItem={(item: Notification) => (
+                  <List.Item
+                    className={`cursor-pointer hover:bg-gray-50 ${
+                      !item.is_read ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => handleNotificationClick(item)}
+                    actions={[
+                      !item.is_read && (
+                        <Button
+                          key="mark-read"
+                          type="text"
+                          size="small"
+                          icon={<CheckOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            markReadMutation.mutate(item.id)
+                          }}
+                        >
+                          Mark Read
+                        </Button>
+                      ),
                       <Button
+                        key="delete"
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteMutation.mutate(item.id)
+                        }}
+                      />,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={
+                        <Avatar
+                          icon={getNotificationIcon(item.notification_type)}
+                          style={{
+                            backgroundColor: item.is_read ? '#f0f0f0' : '#e6f7ff',
+                          }}
+                        />
+                      }
+                      title={
+                        <Space>
+                          <Text strong={!item.is_read}>{item.title}</Text>
+                          <Tag color={getPriorityColor(item.priority)}>
+                            {item.priority}
+                          </Tag>
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <Paragraph
+                            ellipsis={{ rows: 2 }}
+                            className="mb-1"
+                            type={item.is_read ? 'secondary' : undefined}
+                          >
+                            {item.message}
+                          </Paragraph>
+                          <Text type="secondary" className="text-xs">
+                            {new Date(item.created_at).toLocaleString()}
+                          </Text>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty description="No notifications" />
+            ),
+          },
+          {
+            key: 'unread',
+            label: (
+              <span>
+                Unread <Badge count={unreadCount} showZero />
+              </span>
+            ),
+            children: isLoading ? (
+              <Spin />
+            ) : notifications.filter((n: Notification) => !n.is_read).length ? (
+              <List
+                itemLayout="horizontal"
+                dataSource={notifications.filter((n: Notification) => !n.is_read)}
+                renderItem={(item: Notification) => (
+                  <List.Item
+                    className="cursor-pointer hover:bg-gray-50 bg-blue-50"
+                    onClick={() => handleNotificationClick(item)}
+                    actions={[
+                      <Button
+                        key="mark-read"
                         type="text"
                         size="small"
                         icon={<CheckOutlined />}
@@ -220,143 +306,127 @@ const NotificationsPage: React.FC = () => {
                         }}
                       >
                         Mark Read
-                      </Button>
-                    ),
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteMutation.mutate(item.id)
-                      }}
-                    />,
-                  ]}
-                >
-                  <List.Item.Meta
-                    avatar={
-                      <Avatar
-                        icon={getNotificationIcon(item.notification_type)}
-                        style={{
-                          backgroundColor: item.is_read ? '#f0f0f0' : '#e6f7ff',
+                      </Button>,
+                      <Button
+                        key="delete"
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteMutation.mutate(item.id)
                         }}
-                      />
-                    }
-                    title={
-                      <Space>
-                        <Text strong={!item.is_read}>{item.title}</Text>
-                        <Tag color={getPriorityColor(item.priority)}>
-                          {item.priority}
-                        </Tag>
-                      </Space>
-                    }
-                    description={
-                      <div>
-                        <Paragraph
-                          ellipsis={{ rows: 2 }}
-                          className="mb-1"
-                          type={item.is_read ? 'secondary' : undefined}
-                        >
-                          {item.message}
-                        </Paragraph>
-                        <Text type="secondary" className="text-xs">
-                          {new Date(item.created_at).toLocaleString()}
-                        </Text>
-                      </div>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          ) : (
-            <Empty description="No notifications" />
-          )}
-        </Tabs.TabPane>
-
-        <Tabs.TabPane
-          tab={
-            <span>
-              Unread <Badge count={unreadCount} showZero />
-            </span>
-          }
-          key="unread"
-        />
-
-        <Tabs.TabPane
-          tab={
-            <span>
-              <SettingOutlined /> Preferences
-            </span>
-          }
-          key="preferences"
-        >
-          {loadingPrefs ? (
-            <Spin />
-          ) : (
-            <Card>
-              <List
-                itemLayout="horizontal"
-                dataSource={preferences || []}
-                renderItem={(pref: NotificationPreference) => (
-                  <List.Item>
+                      />,
+                    ]}
+                  >
                     <List.Item.Meta
-                      title={formatNotificationType(pref.notification_type)}
+                      avatar={
+                        <Avatar
+                          icon={getNotificationIcon(item.notification_type)}
+                          style={{ backgroundColor: '#e6f7ff' }}
+                        />
+                      }
+                      title={
+                        <Space>
+                          <Text strong>{item.title}</Text>
+                          <Tag color={getPriorityColor(item.priority)}>
+                            {item.priority}
+                          </Tag>
+                        </Space>
+                      }
+                      description={
+                        <div>
+                          <Paragraph ellipsis={{ rows: 2 }} className="mb-1">
+                            {item.message}
+                          </Paragraph>
+                          <Text type="secondary" className="text-xs">
+                            {new Date(item.created_at).toLocaleString()}
+                          </Text>
+                        </div>
+                      }
                     />
-                    <Space size="large">
-                      <div className="text-center">
-                        <div className="mb-1">
-                          <Text type="secondary">In-App</Text>
-                        </div>
-                        <Switch
-                          checked={pref.in_app_enabled}
-                          onChange={(checked) =>
-                            updatePrefMutation.mutate({
-                              type: pref.notification_type,
-                              field: 'in_app_enabled',
-                              value: checked,
-                            })
-                          }
-                        />
-                      </div>
-                      <div className="text-center">
-                        <div className="mb-1">
-                          <Text type="secondary">Email</Text>
-                        </div>
-                        <Switch
-                          checked={pref.email_enabled}
-                          onChange={(checked) =>
-                            updatePrefMutation.mutate({
-                              type: pref.notification_type,
-                              field: 'email_enabled',
-                              value: checked,
-                            })
-                          }
-                        />
-                      </div>
-                      <div className="text-center">
-                        <div className="mb-1">
-                          <Text type="secondary">Push</Text>
-                        </div>
-                        <Switch
-                          checked={pref.push_enabled}
-                          onChange={(checked) =>
-                            updatePrefMutation.mutate({
-                              type: pref.notification_type,
-                              field: 'push_enabled',
-                              value: checked,
-                            })
-                          }
-                        />
-                      </div>
-                    </Space>
                   </List.Item>
                 )}
               />
-            </Card>
-          )}
-        </Tabs.TabPane>
-      </Tabs>
+            ) : (
+              <Empty description="No unread notifications" />
+            ),
+          },
+          {
+            key: 'preferences',
+            label: (
+              <span>
+                <SettingOutlined /> Preferences
+              </span>
+            ),
+            children: loadingPrefs ? (
+              <Spin />
+            ) : (
+              <Card>
+                <List
+                  itemLayout="horizontal"
+                  dataSource={preferences || []}
+                  renderItem={(pref: NotificationPreference) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={formatNotificationType(pref.notification_type)}
+                      />
+                      <Space size="large">
+                        <div className="text-center">
+                          <div className="mb-1">
+                            <Text type="secondary">In-App</Text>
+                          </div>
+                          <Switch
+                            checked={pref.in_app_enabled}
+                            onChange={(checked) =>
+                              updatePrefMutation.mutate({
+                                type: pref.notification_type,
+                                field: 'in_app_enabled',
+                                value: checked,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="mb-1">
+                            <Text type="secondary">Email</Text>
+                          </div>
+                          <Switch
+                            checked={pref.email_enabled}
+                            onChange={(checked) =>
+                              updatePrefMutation.mutate({
+                                type: pref.notification_type,
+                                field: 'email_enabled',
+                                value: checked,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="text-center">
+                          <div className="mb-1">
+                            <Text type="secondary">Push</Text>
+                          </div>
+                          <Switch
+                            checked={pref.push_enabled}
+                            onChange={(checked) =>
+                              updatePrefMutation.mutate({
+                                type: pref.notification_type,
+                                field: 'push_enabled',
+                                value: checked,
+                              })
+                            }
+                          />
+                        </div>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
+              </Card>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

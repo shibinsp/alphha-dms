@@ -16,13 +16,19 @@ import DocumentDetailPage from '@/pages/documents/DocumentDetailPage'
 import DocumentUploadPage from '@/pages/documents/DocumentUploadPage'
 import ApprovalQueuePage from '@/pages/approvals/ApprovalQueuePage'
 import LegalHoldsPage from '@/pages/compliance/LegalHoldsPage'
+import RetentionPoliciesPage from '@/pages/compliance/RetentionPoliciesPage'
+import AuditLogPage from '@/pages/compliance/AuditLogPage'
 import PIISettingsPage from '@/pages/settings/PIISettingsPage'
+import WorkflowsPage from '@/pages/settings/WorkflowsPage'
 import SearchPage from '@/pages/search/SearchPage'
 import ChatPage from '@/pages/chat/ChatPage'
 // Phase 4 Pages
 import AnalyticsDashboard from '@/pages/analytics/AnalyticsDashboard'
 import BSIAnalysisPage from '@/pages/bsi/BSIAnalysisPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
+// Admin Pages
+import UsersPage from '@/pages/admin/UsersPage'
+import RolesPage from '@/pages/admin/RolesPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -131,13 +137,19 @@ function App() {
           <Route path="documents/:id" element={<DocumentDetailPage />} />
           <Route path="approvals" element={<ApprovalQueuePage />} />
           <Route path="compliance/legal-holds" element={<LegalHoldsPage />} />
+          <Route path="compliance/retention" element={<RetentionPoliciesPage />} />
+          <Route path="compliance/audit" element={<AuditLogPage />} />
           <Route path="settings/pii" element={<PIISettingsPage />} />
+          <Route path="settings/workflows" element={<WorkflowsPage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="chat" element={<ChatPage />} />
           {/* Phase 4 Routes */}
           <Route path="analytics" element={<AnalyticsDashboard />} />
           <Route path="bsi" element={<BSIAnalysisPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          {/* Admin Routes */}
+          <Route path="admin/users" element={<UsersPage />} />
+          <Route path="admin/roles" element={<RolesPage />} />
         </Route>
 
         {/* Catch all */}

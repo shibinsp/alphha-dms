@@ -26,7 +26,8 @@ import {
   ArrowUpOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
-import { api } from '@/services/api'
+import api from '@/services/api'
+import type { Dayjs } from 'dayjs'
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
@@ -84,11 +85,21 @@ interface DashboardStats {
 
 const AnalyticsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview')
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+
+  const handleDateRangeChange = (dates: [Dayjs, Dayjs] | null) => {
+    setDateRange(dates)
+  }
 
   const { data: stats, isLoading, error, refetch } = useQuery<DashboardStats>({
-    queryKey: ['analytics', 'dashboard'],
+    queryKey: ['analytics', 'dashboard', dateRange],
     queryFn: async () => {
-      const response = await api.get('/analytics/dashboard')
+      const params = new URLSearchParams()
+      if (dateRange) {
+        params.set('start_date', dateRange[0].toISOString())
+        params.set('end_date', dateRange[1].toISOString())
+      }
+      const response = await api.get(`/analytics/dashboard${params.toString() ? '?' + params.toString() : ''}`)
       return response.data
     },
     refetchInterval: 60000, // Refresh every minute
@@ -152,7 +163,11 @@ const AnalyticsDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <Title level={2}>Analytics Dashboard</Title>
         <Space>
-          <RangePicker />
+          <RangePicker
+            value={dateRange}
+            onChange={(dates) => handleDateRangeChange(dates as [Dayjs, Dayjs] | null)}
+            allowClear
+          />
           <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
             Refresh
           </Button>

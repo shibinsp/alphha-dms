@@ -1,5 +1,5 @@
 import React from 'react'
-import { Row, Col, Card, Statistic, Typography, List, Tag, Progress } from 'antd'
+import { Row, Col, Card, Statistic, Typography, List, Tag, Progress, Spin } from 'antd'
 import {
   FileOutlined,
   CheckCircleOutlined,
@@ -10,23 +10,60 @@ import {
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import { documentService } from '@/services/documentService'
+import api from '@/services/api'
 
 const { Title, Text } = Typography
 
+interface DashboardSummary {
+  documents: {
+    total_documents: number
+    documents_today: number
+    documents_this_week: number
+    documents_this_month: number
+    by_status: Record<string, number>
+    by_type: Record<string, number>
+    by_department: Record<string, number>
+  }
+  ocr: {
+    total_processed: number
+    pending: number
+    failed: number
+    avg_processing_time: number
+    success_rate: number
+  }
+  workflows: {
+    pending_approvals: number
+    approved_today: number
+    rejected_today: number
+    avg_approval_time: number
+    overdue_count: number
+  }
+  compliance: {
+    compliance_score: number
+    documents_with_pii: number
+    legal_holds_active: number
+    retention_expiring_soon: number
+    worm_records: number
+  }
+  storage: {
+    total_storage_mb: number
+    used_storage_mb: number
+    storage_by_type: Record<string, number>
+  }
+}
+
 const DashboardPage: React.FC = () => {
+  // Fetch dashboard analytics
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardSummary>({
+    queryKey: ['analytics', 'dashboard'],
+    queryFn: () => api.get('/analytics/dashboard').then(r => r.data),
+  })
+
   // Fetch recent documents
   const { data: documentsData } = useQuery({
     queryKey: ['documents', 'recent'],
     queryFn: () => documentService.getDocuments({ page: 1, page_size: 5 }),
   })
-
-  // Stats data (would come from analytics API in production)
-  const stats = {
-    total_documents: documentsData?.total || 0,
-    pending_approval: 12,
-    approved_today: 8,
-    processing: 3,
-  }
 
   const recentDocuments = documentsData?.items || []
 
@@ -38,6 +75,14 @@ const DashboardPage: React.FC = () => {
       ARCHIVED: 'warning',
     }
     return colors[status] || 'default'
+  }
+
+  if (dashboardLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Spin size="large" />
+      </div>
+    )
   }
 
   return (
@@ -52,7 +97,7 @@ const DashboardPage: React.FC = () => {
           <Card>
             <Statistic
               title="Total Documents"
-              value={stats.total_documents}
+              value={dashboardData?.documents?.total_documents || 0}
               prefix={<FileOutlined />}
               valueStyle={{ color: '#1E3A5F' }}
             />
@@ -62,7 +107,7 @@ const DashboardPage: React.FC = () => {
           <Card>
             <Statistic
               title="Pending Approval"
-              value={stats.pending_approval}
+              value={dashboardData?.workflows?.pending_approvals || 0}
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#FFA000' }}
             />
@@ -72,7 +117,7 @@ const DashboardPage: React.FC = () => {
           <Card>
             <Statistic
               title="Approved Today"
-              value={stats.approved_today}
+              value={dashboardData?.workflows?.approved_today || 0}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#388E3C' }}
               suffix={<ArrowUpOutlined style={{ fontSize: 14 }} />}
@@ -82,8 +127,8 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Processing"
-              value={stats.processing}
+              title="OCR Processing"
+              value={dashboardData?.ocr?.pending || 0}
               prefix={<FileSearchOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -128,27 +173,25 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={8}>
           <Card title="Document Distribution">
             <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Text>Customer Documents</Text>
-                  <Text strong>45%</Text>
-                </div>
-                <Progress percent={45} strokeColor="#1E3A5F" showInfo={false} />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Text>Vendor Documents</Text>
-                  <Text strong>35%</Text>
-                </div>
-                <Progress percent={35} strokeColor="#2E7D32" showInfo={false} />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1">
-                  <Text>Internal Documents</Text>
-                  <Text strong>20%</Text>
-                </div>
-                <Progress percent={20} strokeColor="#B8860B" showInfo={false} />
-              </div>
+              {dashboardData?.documents?.by_status && Object.entries(dashboardData.documents.by_status).slice(0, 3).map(([status, count]) => {
+                const total = dashboardData.documents.total_documents || 1
+                const percent = Math.round((count / total) * 100)
+                const colors: Record<string, string> = {
+                  DRAFT: '#1E3A5F',
+                  REVIEW: '#FFA000',
+                  APPROVED: '#2E7D32',
+                  ARCHIVED: '#B8860B',
+                }
+                return (
+                  <div key={status}>
+                    <div className="flex justify-between mb-1">
+                      <Text>{status}</Text>
+                      <Text strong>{percent}%</Text>
+                    </div>
+                    <Progress percent={percent} strokeColor={colors[status] || '#1890ff'} showInfo={false} />
+                  </div>
+                )
+              })}
             </div>
           </Card>
 
@@ -157,23 +200,23 @@ const DashboardPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircleOutlined className="text-green-500" />
-                  <Text>Retention Compliant</Text>
+                  <Text>Compliance Score</Text>
                 </div>
-                <Text strong className="text-green-500">98%</Text>
+                <Text strong className="text-green-500">{dashboardData?.compliance?.compliance_score?.toFixed(0) || 0}%</Text>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ExclamationCircleOutlined className="text-yellow-500" />
                   <Text>Expiring Soon</Text>
                 </div>
-                <Text strong className="text-yellow-500">5</Text>
+                <Text strong className="text-yellow-500">{dashboardData?.compliance?.retention_expiring_soon || 0}</Text>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ClockCircleOutlined className="text-blue-500" />
-                  <Text>Legal Hold</Text>
+                  <Text>Legal Holds</Text>
                 </div>
-                <Text strong className="text-blue-500">3</Text>
+                <Text strong className="text-blue-500">{dashboardData?.compliance?.legal_holds_active || 0}</Text>
               </div>
             </div>
           </Card>

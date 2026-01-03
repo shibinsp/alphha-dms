@@ -76,12 +76,12 @@ class ComplianceAlertCreate(ComplianceAlertBase):
 
 class ComplianceAlertResponse(ComplianceAlertBase):
     id: str
-    tenant_id: str
-    status: str
-    acknowledged_by: Optional[str]
-    acknowledged_at: Optional[datetime]
-    resolved_at: Optional[datetime]
-    created_at: datetime
+    tenant_id: Optional[str] = None
+    status: Optional[str] = None
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

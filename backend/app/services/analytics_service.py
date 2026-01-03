@@ -13,6 +13,7 @@ from app.models import (
     AuditEvent,
     LifecycleStatus, ApprovalStatus, OCRStatus
 )
+from app.models.workflow import StepStatus
 from app.models.analytics import (
     AnalyticsMetric, DashboardWidget, ComplianceAlert,
     ReportSchedule, ReportExecution,
@@ -147,13 +148,13 @@ class AnalyticsService:
         ).scalar() or 0
 
         approved_today = self.db.query(func.count(ApprovalAction.id)).filter(
-            ApprovalAction.action == "approved",
-            ApprovalAction.created_at >= today_start
+            ApprovalAction.action == StepStatus.APPROVED,
+            ApprovalAction.acted_at >= today_start
         ).scalar() or 0
 
         rejected_today = self.db.query(func.count(ApprovalAction.id)).filter(
-            ApprovalAction.action == "rejected",
-            ApprovalAction.created_at >= today_start
+            ApprovalAction.action == StepStatus.REJECTED,
+            ApprovalAction.acted_at >= today_start
         ).scalar() or 0
 
         # Count overdue (requests older than 7 days)
@@ -174,15 +175,17 @@ class AnalyticsService:
 
     def _get_compliance_stats(self, tenant_id: str) -> ComplianceStats:
         """Get compliance statistics"""
-        # Count documents with PII
-        pii_docs = self.db.query(func.count(func.distinct(DocumentPIIField.document_id))).filter(
-            DocumentPIIField.tenant_id == tenant_id
+        # Count documents with PII - join through Document to filter by tenant
+        pii_docs = self.db.query(func.count(func.distinct(DocumentPIIField.document_id))).join(
+            Document, DocumentPIIField.document_id == Document.id
+        ).filter(
+            Document.tenant_id == tenant_id
         ).scalar() or 0
 
         # Active legal holds
         legal_holds = self.db.query(func.count(LegalHold.id)).filter(
             LegalHold.tenant_id == tenant_id,
-            LegalHold.status == "active"
+            LegalHold.status == "ACTIVE"
         ).scalar() or 0
 
         # WORM records
@@ -194,8 +197,8 @@ class AnalyticsService:
         expiry_threshold = datetime.utcnow() + timedelta(days=30)
         expiring = self.db.query(func.count(Document.id)).filter(
             Document.tenant_id == tenant_id,
-            Document.retention_expires_at != None,
-            Document.retention_expires_at <= expiry_threshold
+            Document.retention_expiry != None,
+            Document.retention_expiry <= expiry_threshold
         ).scalar() or 0
 
         # Calculate compliance score (simplified)
