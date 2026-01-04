@@ -1,0 +1,91 @@
+name: Deploy to Production Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          command_timeout: 10m
+          script: |
+            set -e  # Exit on any error
+
+            echo "=========================================="
+            echo "Starting deployment at $(date)"
+            echo "=========================================="
+
+            # Navigate to project directory
+            cd ${{ secrets.PROJECT_PATH }} || exit 1
+
+            # Pull latest changes from main branch
+            echo "[1/6] Pulling latest changes..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Create required directories if they don't exist
+            echo "[2/6] Ensuring directories exist..."
+            mkdir -p data uploads
+
+            # Stop existing containers gracefully
+            echo "[3/6] Stopping existing containers..."
+            docker compose down --remove-orphans || true
+
+            # Rebuild and start containers
+            echo "[4/6] Building and starting containers..."
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Wait for services to be healthy
+            echo "[5/6] Waiting for services to start..."
+            sleep 10
+
+            # Health check
+            echo "[6/6] Running health check..."
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1 || curl -sf http://localhost:8000/ > /dev/null 2>&1; then
+              echo "Backend is healthy!"
+            else
+              echo "Warning: Backend health check failed, but containers may still be starting..."
+            fi
+
+            # Clean up unused Docker resources
+            echo "Cleaning up unused Docker resources..."
+            docker system prune -f --volumes 2>/dev/null || docker system prune -f
+
+            # Show running containers
+            echo "=========================================="
+            echo "Deployment completed at $(date)"
+            echo "=========================================="
+            echo "Running containers:"
+            docker compose ps
+            echo ""
+            echo "Container logs (last 10 lines each):"
+            docker compose logs --tail=10
+
+      - name: Deployment Status
+        if: success()
+        run: |
+          echo "✅ Deployment to production server completed successfully!"
+          echo "Server: ${{ secrets.SERVER_HOST }}"
+
+      - name: Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Deployment failed. Please check the logs above."
+          exit 1
