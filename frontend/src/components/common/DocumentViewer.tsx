@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Spin, Alert, Tabs, Descriptions, Tag, Card, Button, Space, Tooltip } from 'antd';
 import {
   FileTextOutlined, DownloadOutlined, FullscreenOutlined,
-  ZoomInOutlined, ZoomOutOutlined, LeftOutlined, RightOutlined
+  ZoomInOutlined, ZoomOutOutlined
 } from '@ant-design/icons';
 
 interface DocumentViewerProps {
@@ -27,7 +27,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
 
   const previewUrl = `/api/v1/documents/${documentId}/preview`;

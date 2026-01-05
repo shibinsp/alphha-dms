@@ -30,6 +30,9 @@ import type { LifecycleStatus } from '@/types'
 import dayjs from 'dayjs'
 import { LifecycleTimeline } from '@/components/common'
 import DocumentViewer from '@/components/common/DocumentViewer'
+import DocumentTags from '@/components/documents/DocumentTags'
+import SharePermissions from '@/components/documents/SharePermissions'
+import ShareLinks from '@/components/documents/ShareLinks'
 
 const { Title, Text } = Typography
 
@@ -207,6 +210,32 @@ const DocumentDetailPage: React.FC = () => {
             </div>
           )}
         </Descriptions>
+      ),
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      children: (
+        <DocumentTags
+          documentId={document.id}
+          editable={!document.is_worm_locked}
+        />
+      ),
+    },
+    {
+      key: 'sharing',
+      label: 'Sharing',
+      children: (
+        <div>
+          <SharePermissions
+            documentId={document.id}
+            canManage={!document.is_worm_locked}
+          />
+          <ShareLinks
+            documentId={document.id}
+            canManage={!document.is_worm_locked}
+          />
+        </div>
       ),
     },
   ]

@@ -11,6 +11,8 @@ celery_app = Celery(
     include=[
         "app.tasks.ocr_tasks",
         "app.tasks.notification_tasks",
+        "app.tasks.embedding_tasks",
+        "app.tasks.bsi_tasks",
     ]
 )
 

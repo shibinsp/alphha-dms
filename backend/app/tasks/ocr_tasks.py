@@ -56,6 +56,11 @@ def process_ocr(self, document_id: str) -> dict:
                     }
                     document.ocr_status = OCRStatus.COMPLETED
                     db.commit()
+
+                    # Trigger embedding generation after Mistral OCR
+                    from app.tasks.embedding_tasks import generate_document_embedding
+                    generate_document_embedding.delay(document_id, document.tenant_id)
+
                     logger.info(f"Mistral OCR completed for document {document_id}")
                     return {"status": "success", "method": "mistral", "text_length": len(document.ocr_text)}
             
@@ -74,6 +79,10 @@ def process_ocr(self, document_id: str) -> dict:
             document.ocr_text = text
             document.ocr_status = OCRStatus.COMPLETED
             db.commit()
+
+            # Trigger embedding generation after OCR
+            from app.tasks.embedding_tasks import generate_document_embedding
+            generate_document_embedding.delay(document_id, document.tenant_id)
 
             logger.info(f"OCR completed for document {document_id}")
             return {"status": "success", "method": "tesseract", "text_length": len(text)}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Card, Input, Button, Tag, Space, Modal, Form, message, Tabs } from 'antd';
-import { SearchOutlined, UserOutlined, FileTextOutlined, SyncOutlined } from '@ant-design/icons';
+import { Table, Card, Input, Button, Tag, Space, Modal, message } from 'antd';
+import { SearchOutlined, UserOutlined, FileTextOutlined } from '@ant-design/icons';
 import { api } from '../../services/api';
 
 interface Customer {

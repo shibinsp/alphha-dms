@@ -49,7 +49,7 @@ const SearchPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false)
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [form] = Form.useForm()
-  const debounceTimer = useRef<NodeJS.Timeout>()
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>()
 
   // Debounce the search query
   useEffect(() => {

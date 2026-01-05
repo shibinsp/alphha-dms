@@ -129,13 +129,42 @@ class AnalyticsService:
         all_docs = total + pending + failed
         success_rate = (total / all_docs * 100) if all_docs > 0 else 0
 
+        # Calculate average OCR processing time from audit events
+        avg_processing_time = self._calculate_avg_ocr_time(tenant_id)
+
         return OCRStats(
             total_processed=total,
             pending=pending,
             failed=failed,
-            avg_processing_time=2.5,  # Placeholder
+            avg_processing_time=avg_processing_time,
             success_rate=round(success_rate, 2)
         )
+
+    def _calculate_avg_ocr_time(self, tenant_id: str) -> float:
+        """Calculate average OCR processing time in minutes"""
+        # Get documents with completed OCR
+        # We calculate time difference from document creation to last update
+        # when OCR completed (approximation since we don't have ocr_completed_at)
+        docs_with_ocr = self.db.query(Document).filter(
+            Document.tenant_id == tenant_id,
+            Document.ocr_status == OCRStatus.COMPLETED,
+            Document.ocr_text.isnot(None),
+        ).limit(100).all()
+
+        if not docs_with_ocr:
+            return 0.0
+
+        total_time = 0
+        count = 0
+        for doc in docs_with_ocr:
+            if doc.updated_at and doc.created_at:
+                diff = (doc.updated_at - doc.created_at).total_seconds() / 60  # minutes
+                # Only count if reasonable (less than 1 hour - exclude manual updates)
+                if 0 < diff < 60:
+                    total_time += diff
+                    count += 1
+
+        return round(total_time / count, 2) if count > 0 else 0.0
 
     def _get_workflow_stats(self, tenant_id: str) -> WorkflowStats:
         """Get workflow statistics"""
@@ -165,13 +194,40 @@ class AnalyticsService:
             ApprovalRequest.created_at < overdue_threshold
         ).scalar() or 0
 
+        # Calculate average approval time
+        avg_approval_time = self._calculate_avg_approval_time(tenant_id)
+
         return WorkflowStats(
             pending_approvals=pending,
             approved_today=approved_today,
             rejected_today=rejected_today,
-            avg_approval_time=24.5,  # Hours - placeholder
+            avg_approval_time=avg_approval_time,
             overdue_count=overdue
         )
+
+    def _calculate_avg_approval_time(self, tenant_id: str) -> float:
+        """Calculate average approval time in hours"""
+        # Get completed approval requests
+        completed_requests = self.db.query(ApprovalRequest).filter(
+            ApprovalRequest.tenant_id == tenant_id,
+            ApprovalRequest.status.in_([ApprovalStatus.APPROVED, ApprovalStatus.REJECTED]),
+            ApprovalRequest.completed_at.isnot(None),
+        ).limit(100).all()
+
+        if not completed_requests:
+            return 0.0
+
+        total_hours = 0
+        count = 0
+        for req in completed_requests:
+            if req.completed_at and req.created_at:
+                diff = (req.completed_at - req.created_at).total_seconds() / 3600  # hours
+                # Only count if reasonable (less than 30 days)
+                if 0 < diff < 720:  # 720 hours = 30 days
+                    total_hours += diff
+                    count += 1
+
+        return round(total_hours / count, 1) if count > 0 else 0.0
 
     def _get_compliance_stats(self, tenant_id: str) -> ComplianceStats:
         """Get compliance statistics"""
@@ -201,8 +257,8 @@ class AnalyticsService:
             Document.retention_expiry <= expiry_threshold
         ).scalar() or 0
 
-        # Calculate compliance score (simplified)
-        score = 85.0  # Placeholder - would be calculated based on various factors
+        # Calculate compliance score based on multiple factors
+        score = self._calculate_compliance_score(tenant_id)
 
         return ComplianceStats(
             compliance_score=score,
@@ -211,6 +267,80 @@ class AnalyticsService:
             retention_expiring_soon=expiring,
             worm_records=worm_count
         )
+
+    def _calculate_compliance_score(self, tenant_id: str) -> float:
+        """
+        Calculate compliance score based on:
+        - 25% Documents with retention policy
+        - 25% Documents with proper classification
+        - 25% PII documents correctly classified as confidential/restricted
+        - 25% No overdue approvals
+        """
+        total_docs = self.db.query(func.count(Document.id)).filter(
+            Document.tenant_id == tenant_id
+        ).scalar() or 0
+
+        if total_docs == 0:
+            return 100.0  # Perfect score if no documents
+
+        scores = []
+
+        # 1. Documents with retention policy (25%)
+        docs_with_retention = self.db.query(func.count(Document.id)).filter(
+            Document.tenant_id == tenant_id,
+            Document.retention_expiry.isnot(None)
+        ).scalar() or 0
+        retention_score = (docs_with_retention / total_docs) * 100 if total_docs > 0 else 0
+        scores.append(min(retention_score, 100) * 0.25)
+
+        # 2. Documents with proper classification (25%)
+        docs_with_classification = self.db.query(func.count(Document.id)).filter(
+            Document.tenant_id == tenant_id,
+            Document.classification.isnot(None)
+        ).scalar() or 0
+        classification_score = (docs_with_classification / total_docs) * 100 if total_docs > 0 else 0
+        scores.append(min(classification_score, 100) * 0.25)
+
+        # 3. PII documents with proper classification (25%)
+        pii_doc_ids = self.db.query(func.distinct(DocumentPIIField.document_id)).join(
+            Document, DocumentPIIField.document_id == Document.id
+        ).filter(Document.tenant_id == tenant_id).subquery()
+
+        pii_docs_total = self.db.query(func.count()).select_from(pii_doc_ids).scalar() or 0
+
+        if pii_docs_total > 0:
+            properly_classified_pii = self.db.query(func.count(Document.id)).filter(
+                Document.tenant_id == tenant_id,
+                Document.id.in_(pii_doc_ids),
+                Document.classification.in_(['CONFIDENTIAL', 'RESTRICTED'])
+            ).scalar() or 0
+            pii_score = (properly_classified_pii / pii_docs_total) * 100
+        else:
+            pii_score = 100  # No PII docs means perfect score for this category
+        scores.append(min(pii_score, 100) * 0.25)
+
+        # 4. No overdue approvals (25%)
+        overdue_threshold = datetime.utcnow() - timedelta(days=7)
+        pending_approvals = self.db.query(func.count(ApprovalRequest.id)).filter(
+            ApprovalRequest.tenant_id == tenant_id,
+            ApprovalRequest.status == ApprovalStatus.PENDING
+        ).scalar() or 0
+
+        overdue_approvals = self.db.query(func.count(ApprovalRequest.id)).filter(
+            ApprovalRequest.tenant_id == tenant_id,
+            ApprovalRequest.status == ApprovalStatus.PENDING,
+            ApprovalRequest.created_at < overdue_threshold
+        ).scalar() or 0
+
+        if pending_approvals > 0:
+            overdue_ratio = overdue_approvals / pending_approvals
+            approval_score = (1 - overdue_ratio) * 100
+        else:
+            approval_score = 100  # No pending = perfect score
+        scores.append(min(approval_score, 100) * 0.25)
+
+        total_score = sum(scores)
+        return round(total_score, 1)
 
     def _get_storage_stats(self, tenant_id: str) -> StorageStats:
         """Get storage statistics"""

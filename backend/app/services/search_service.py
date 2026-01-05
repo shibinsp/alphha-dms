@@ -7,8 +7,9 @@ from sqlalchemy import and_, or_, func
 from fastapi import HTTPException
 
 from app.models.document import Document, LifecycleStatus
-from app.models.search import SavedSearch, SearchHistory, SearchSuggestion
+from app.models.search import SavedSearch, SearchHistory, SearchSuggestion, DocumentEmbedding
 from app.models.taxonomy import DocumentTag, Tag
+from app.services.embedding_service import EmbeddingService
 
 
 class SearchService:
@@ -16,6 +17,7 @@ class SearchService:
 
     def __init__(self, db: Session):
         self.db = db
+        self.embedding_service = EmbeddingService(db)
 
     def search(
         self,
@@ -133,13 +135,41 @@ class SearchService:
         limit: int,
     ) -> Tuple[List[Document], int]:
         """
-        Semantic search using document embeddings.
-        Note: In production, this would use vector similarity search (e.g., sqlite-vss, pgvector).
-        This is a simplified implementation.
+        Semantic search using document embeddings and cosine similarity.
         """
-        # For now, fall back to keyword search
-        # In production: Generate query embedding, compute cosine similarity with document embeddings
-        return self._keyword_search(base_query, query, offset, limit)
+        # Get similar documents using embedding service
+        similar_docs = self.embedding_service.search_similar_sync(
+            query=query,
+            tenant_id=tenant_id,
+            top_k=100,  # Get more than needed for filtering
+        )
+
+        if not similar_docs:
+            # Fall back to keyword search if no embeddings or API unavailable
+            return self._keyword_search(base_query, query, offset, limit)
+
+        # Get document IDs from similarity search
+        similar_doc_ids = [doc_id for doc_id, score in similar_docs]
+
+        # Filter by base query constraints and get documents in similarity order
+        filtered_query = base_query.filter(Document.id.in_(similar_doc_ids))
+        total = filtered_query.count()
+
+        # Get all matching documents
+        matching_docs = filtered_query.all()
+
+        # Sort by similarity score
+        doc_scores = {doc_id: score for doc_id, score in similar_docs}
+        sorted_docs = sorted(
+            matching_docs,
+            key=lambda d: doc_scores.get(d.id, 0),
+            reverse=True,
+        )
+
+        # Apply pagination
+        results = sorted_docs[offset:offset + limit]
+
+        return results, total
 
     def _hybrid_search(
         self,
@@ -150,12 +180,55 @@ class SearchService:
         limit: int,
     ) -> Tuple[List[Document], int]:
         """
-        Hybrid search combining keyword and semantic results using RRF.
-        Reciprocal Rank Fusion: score = sum(1 / (k + rank_i)) for each ranker
+        Hybrid search combining keyword and semantic results using Reciprocal Rank Fusion (RRF).
+        RRF score = sum(1 / (k + rank_i)) where k=60 is a constant.
         """
-        # For now, use keyword search as the basis
-        # In production: Combine keyword and semantic rankings using RRF
-        return self._keyword_search(base_query, query, offset, limit)
+        RRF_K = 60  # RRF constant
+
+        # Get keyword search results (get more for ranking)
+        keyword_results, keyword_total = self._keyword_search(base_query, query, 0, 100)
+
+        # Get semantic search results
+        similar_docs = self.embedding_service.search_similar_sync(
+            query=query,
+            tenant_id=tenant_id,
+            top_k=100,
+        )
+
+        # Build keyword rankings
+        keyword_ranks = {doc.id: rank + 1 for rank, doc in enumerate(keyword_results)}
+
+        # Build semantic rankings
+        semantic_ranks = {doc_id: rank + 1 for rank, (doc_id, score) in enumerate(similar_docs)}
+
+        # Compute RRF scores
+        all_doc_ids = set(keyword_ranks.keys()) | set(semantic_ranks.keys())
+        rrf_scores = {}
+
+        for doc_id in all_doc_ids:
+            score = 0
+            if doc_id in keyword_ranks:
+                score += 1 / (RRF_K + keyword_ranks[doc_id])
+            if doc_id in semantic_ranks:
+                score += 1 / (RRF_K + semantic_ranks[doc_id])
+            rrf_scores[doc_id] = score
+
+        # Sort by RRF score
+        sorted_doc_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
+
+        # Filter by base query constraints
+        filtered_query = base_query.filter(Document.id.in_(sorted_doc_ids))
+        total = filtered_query.count()
+
+        # Get documents and sort by RRF score
+        matching_docs = filtered_query.all()
+        doc_map = {doc.id: doc for doc in matching_docs}
+        sorted_docs = [doc_map[doc_id] for doc_id in sorted_doc_ids if doc_id in doc_map]
+
+        # Apply pagination
+        results = sorted_docs[offset:offset + limit]
+
+        return results, total
 
     def _get_accessible_classifications(self, clearance_level: str) -> List[str]:
         """Get classification levels accessible to user based on their clearance"""

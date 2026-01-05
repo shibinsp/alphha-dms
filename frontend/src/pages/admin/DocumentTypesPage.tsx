@@ -4,7 +4,7 @@ import {
   InputNumber, message, Popconfirm, Divider, List, Switch
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, FolderOutlined,
+  PlusOutlined, EditOutlined, FolderOutlined,
   CheckCircleOutlined, FieldTimeOutlined
 } from '@ant-design/icons';
 import { api } from '../../services/api';
@@ -103,7 +103,7 @@ const DocumentTypesPage: React.FC = () => {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string, record: DocumentType) => (
+      render: (name: string, _record: DocumentType) => (
         <Space>
           <FolderOutlined />
           {name}

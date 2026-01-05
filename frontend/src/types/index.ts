@@ -66,6 +66,8 @@ export interface Document {
   is_worm_locked: boolean
   legal_hold: boolean
   ocr_status: OCRStatus
+  ocr_text?: string
+  extracted_metadata?: Record<string, unknown>
   custom_metadata: Record<string, unknown>
   tenant_id: string
   created_by: string

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Descriptions, Tag, Space, Button, Image, Tabs, Table, Timeline,
+  Card, Descriptions, Tag, Space, Button, Image, Tabs, Table,
   message, Spin, Alert, Modal, Form, Input, Select, DatePicker, Switch,
-  Divider, Badge, Tooltip
+  Divider, Badge
 } from 'antd';
 import {
   FileTextOutlined, LockOutlined, UnlockOutlined, HistoryOutlined,
-  ShareAltOutlined, EditOutlined, DownloadOutlined, EyeOutlined,
-  UserOutlined, ShopOutlined, BankOutlined, TagsOutlined, DiffOutlined
+  ShareAltOutlined, EditOutlined, DownloadOutlined,
+  UserOutlined, ShopOutlined, BankOutlined, DiffOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
@@ -66,7 +66,7 @@ interface Permission {
 
 const DocumentOverviewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  useNavigate(); // Keep hook for potential future use
   const [document, setDocument] = useState<DocumentDetail | null>(null);
   const [versions, setVersions] = useState<Version[]>([]);
   const [lockStatus, setLockStatus] = useState<LockStatus | null>(null);

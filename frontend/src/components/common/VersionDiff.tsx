@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Select, Card, Tag, Space, Spin, Alert, Descriptions, Badge } from 'antd';
+import { Modal, Select, Card, Space, Spin, Alert, Descriptions } from 'antd';
 import { DiffOutlined, SwapOutlined } from '@ant-design/icons';
 import { api } from '../../services/api';
 

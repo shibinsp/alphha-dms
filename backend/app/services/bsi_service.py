@@ -42,8 +42,9 @@ class BSIService:
         self.db.commit()
         self.db.refresh(statement)
 
-        # Trigger async processing (in production, this would be a Celery task)
-        # self._process_statement(statement)
+        # Trigger async processing
+        from app.tasks.bsi_tasks import parse_bank_statement
+        parse_bank_statement.delay(statement.id, tenant_id)
 
         return statement
 

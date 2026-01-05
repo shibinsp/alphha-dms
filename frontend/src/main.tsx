@@ -14,6 +14,48 @@ const queryClient = new QueryClient({
   },
 })
 
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope)
+
+        // Check for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New version available
+                console.log('New version available!')
+                // Could show update notification here
+              }
+            })
+          }
+        })
+      })
+      .catch((error) => {
+        console.error('SW registration failed:', error)
+      })
+
+    // Listen for messages from service worker
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      const { type, ...data } = event.data
+      switch (type) {
+        case 'SYNC_SUCCESS':
+          console.log('Sync completed:', data)
+          // Could trigger a refetch or show notification
+          break
+        case 'DOCUMENT_CACHED':
+          console.log('Document cached:', data.documentId)
+          break
+      }
+    })
+  })
+}
+
 // Ant Design theme configuration
 const theme = {
   token: {

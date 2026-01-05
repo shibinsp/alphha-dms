@@ -1,6 +1,6 @@
 import React from 'react';
 import { Steps, Tag } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, EditOutlined, FileSearchOutlined, InboxOutlined, DeleteOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, EditOutlined, FileSearchOutlined, InboxOutlined, DeleteOutlined } from '@ant-design/icons';
 
 interface LifecycleTimelineProps {
   currentStatus: string;

@@ -71,6 +71,16 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: Optional[str] = "Jh5S3cDgj09pyJgXzUXiOGxWukB8BSY2"
     MISTRAL_MODEL: str = "mistral-small-latest"
 
+    # SMTP Email Configuration
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_EMAIL: str = "noreply@alphha.io"
+    SMTP_FROM_NAME: str = "Alphha DMS"
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
