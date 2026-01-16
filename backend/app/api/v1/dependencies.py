@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.core.security import decode_token
@@ -35,7 +35,7 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
 

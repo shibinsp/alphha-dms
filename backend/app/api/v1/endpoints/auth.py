@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.api.v1.dependencies import get_current_user, rate_limiter
@@ -231,12 +231,15 @@ async def refresh_token(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current authenticated user information.
     """
-    return current_user
+    # Reload user with roles eagerly loaded
+    user = db.query(User).options(joinedload(User.roles)).filter(User.id == current_user.id).first()
+    return user
 
 
 @router.post("/mfa/setup", response_model=MFASetupResponse)
