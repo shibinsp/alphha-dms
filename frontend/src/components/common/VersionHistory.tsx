@@ -58,6 +58,9 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
               {version.is_current && (
                 <Tag color="green" className="ml-1">Current</Tag>
               )}
+              {!version.is_current && (
+                <Tag color="default" className="ml-1">Read-only</Tag>
+              )}
               {selectedForCompare?.id === version.id && (
                 <Tag color="blue">Selected for Compare</Tag>
               )}

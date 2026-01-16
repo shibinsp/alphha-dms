@@ -71,6 +71,29 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: Optional[str] = "Jh5S3cDgj09pyJgXzUXiOGxWukB8BSY2"
     MISTRAL_MODEL: str = "mistral-small-latest"
 
+    # SSO Configuration
+    SSO_ENABLED: bool = False
+    SSO_PROVIDER: str = "oidc"  # "oidc" or "saml"
+    OIDC_ISSUER_URL: Optional[str] = None
+    OIDC_CLIENT_ID: Optional[str] = None
+    OIDC_CLIENT_SECRET: Optional[str] = None
+    OIDC_REDIRECT_URI: str = "http://localhost:7001/api/v1/auth/oidc/callback"
+    SAML_IDP_METADATA_URL: Optional[str] = None
+    SAML_SP_ENTITY_ID: str = "alphha-dms"
+
+    # Virus Scanning
+    VIRUS_SCAN_ENABLED: bool = True
+    CLAMAV_HOST: str = "localhost"
+    CLAMAV_PORT: int = 3310
+
+    # External Connectors
+    SHAREPOINT_CLIENT_ID: Optional[str] = None
+    SHAREPOINT_CLIENT_SECRET: Optional[str] = None
+    SHAREPOINT_TENANT_ID: Optional[str] = None
+    ONEDRIVE_CLIENT_ID: Optional[str] = None
+    ONEDRIVE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_DRIVE_CREDENTIALS_FILE: Optional[str] = None
+
     # SMTP Email Configuration
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587

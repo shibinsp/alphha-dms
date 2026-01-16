@@ -9,7 +9,7 @@ from app.core.database import Base
 
 
 class DocumentVersion(Base):
-    """Document version history."""
+    """Document version history. All versions are IMMUTABLE once created - only the current version's document can be edited."""
     __tablename__ = "document_versions"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

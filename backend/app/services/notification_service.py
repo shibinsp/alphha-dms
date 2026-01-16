@@ -419,3 +419,61 @@ class NotificationService:
             entity_id=document_id,
             action_url=f"/compliance/legal-holds"
         )
+
+    def notify_access_requested(
+        self,
+        tenant_id: str,
+        owner_id: str,
+        document_id: str,
+        document_title: str,
+        requester_name: str
+    ):
+        """Send notification when access is requested"""
+        return self.create_notification(
+            tenant_id=tenant_id,
+            user_id=owner_id,
+            notification_type=NotificationType.ACCESS_REQUESTED,
+            title="Access Requested",
+            message=f"{requester_name} requested access to '{document_title}'",
+            entity_type="document",
+            entity_id=document_id,
+            action_url="/access-requests"
+        )
+
+    def notify_access_approved(
+        self,
+        tenant_id: str,
+        requester_id: str,
+        document_id: str,
+        document_title: str
+    ):
+        """Send notification when access is approved"""
+        return self.create_notification(
+            tenant_id=tenant_id,
+            user_id=requester_id,
+            notification_type=NotificationType.ACCESS_APPROVED,
+            title="Access Approved",
+            message=f"Your access request for '{document_title}' was approved",
+            entity_type="document",
+            entity_id=document_id,
+            action_url=f"/documents/{document_id}"
+        )
+
+    def notify_access_rejected(
+        self,
+        tenant_id: str,
+        requester_id: str,
+        document_id: str,
+        document_title: str
+    ):
+        """Send notification when access is rejected"""
+        return self.create_notification(
+            tenant_id=tenant_id,
+            user_id=requester_id,
+            notification_type=NotificationType.ACCESS_REJECTED,
+            title="Access Rejected",
+            message=f"Your access request for '{document_title}' was rejected",
+            entity_type="document",
+            entity_id=document_id,
+            action_url="/access-requests"
+        )

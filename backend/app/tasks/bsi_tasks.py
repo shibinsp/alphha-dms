@@ -3,7 +3,7 @@ import logging
 from celery import current_app as celery_app
 from sqlalchemy.orm import Session
 
-from app.db.session import SessionLocal
+from app.core.database import SessionLocal
 from app.models.bsi import BankStatement, BankTransaction, StatementStatus, TransactionCategory, TransactionType
 from app.models import Document
 from app.services.bsi_parser import BSIParser, ParsedStatement

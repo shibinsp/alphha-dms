@@ -10,11 +10,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 4400,
+    port: 7000,
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: process.env.VITE_API_TARGET || 'http://localhost:8877',
+        target: 'http://backend:7001',
         changeOrigin: true,
       },
     },

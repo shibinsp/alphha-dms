@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Form, Input, Button, message, Divider } from 'antd'
 import { UserOutlined, LockOutlined, SafetyOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/authService'
 
@@ -15,6 +16,7 @@ const LoginPage: React.FC = () => {
   const [requiresMFA, setRequiresMFA] = useState(false)
   const [form] = Form.useForm()
   const login = useAuthStore((state) => state.login)
+  const navigate = useNavigate()
 
   const handleSubmit = async (values: LoginFormValues) => {
     setLoading(true)
@@ -66,7 +68,7 @@ const LoginPage: React.FC = () => {
           name="email"
           rules={[
             { required: true, message: 'Please enter your email' },
-            { type: 'email', message: 'Please enter a valid email' },
+            { pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Please enter a valid email' },
           ]}
         >
           <Input
@@ -119,9 +121,16 @@ const LoginPage: React.FC = () => {
         <span className="text-sm">Secure access</span>
       </Divider>
 
-      <p className="text-center text-gray-500 text-sm">
+      <p className="text-center text-gray-500 text-sm mb-4">
         Protected by enterprise-grade security with AES-256 encryption and
         immutable audit trails.
+      </p>
+
+      <p className="text-center text-sm">
+        Don't have an account?{' '}
+        <Button type="link" className="p-0" onClick={() => navigate('/register')}>
+          Create Account
+        </Button>
       </p>
     </div>
   )

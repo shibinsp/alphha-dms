@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,7 +10,8 @@ from app.services.audit_service import AuditService
 from app.schemas.user import (
     Token, UserLogin, UserResponse,
     MFASetupResponse, MFAVerifyRequest,
-    PasswordChangeRequest, RefreshTokenRequest
+    PasswordChangeRequest, RefreshTokenRequest,
+    UserCreate
 )
 from app.models.user import User
 
@@ -126,6 +128,57 @@ async def login_json(
     )
 
     return tokens
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    request: Request,
+    data: RegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """Register a new user account."""
+    from app.models import Tenant, Role
+    from app.core.security import get_password_hash
+    import uuid
+    
+    # Check if email exists
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Get default tenant
+    tenant = db.query(Tenant).first()
+    if not tenant:
+        raise HTTPException(status_code=400, detail="No tenant configured")
+    
+    # Get viewer role as default
+    viewer_role = db.query(Role).filter(
+        Role.tenant_id == tenant.id,
+        Role.name == "viewer"
+    ).first()
+    
+    user = User(
+        id=str(uuid.uuid4()),
+        email=data.email,
+        password_hash=get_password_hash(data.password),
+        full_name=data.full_name,
+        tenant_id=tenant.id,
+        is_active=True
+    )
+    if viewer_role:
+        user.roles.append(viewer_role)
+    
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return user
 
 
 @router.post("/logout")

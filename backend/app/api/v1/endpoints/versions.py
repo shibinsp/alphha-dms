@@ -244,7 +244,12 @@ def restore_version(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Restore a previous version (creates new version, doesn't overwrite)."""
+    """
+    Restore a previous version (creates new version, doesn't overwrite).
+    
+    NOTE: Previous versions are READ-ONLY and cannot be modified or deleted.
+    This endpoint creates a NEW version based on the old one.
+    """
     doc = db.query(Document).filter(
         Document.id == doc_id,
         Document.tenant_id == current_user.tenant_id

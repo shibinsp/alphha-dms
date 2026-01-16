@@ -109,8 +109,16 @@ async def get_current_tenant(
     )
 
 
-def require_permissions(*permissions: str):
+def require_permissions(*permissions):
     """Dependency to check if user has required permissions."""
+    # Flatten if a list was passed
+    flat_permissions = []
+    for p in permissions:
+        if isinstance(p, list):
+            flat_permissions.extend(p)
+        else:
+            flat_permissions.append(p)
+    
     async def permission_checker(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -120,14 +128,16 @@ def require_permissions(*permissions: str):
         # Gather permissions from all user roles
         for role in current_user.roles:
             if role.permissions:
-                user_permissions.update(role.permissions)
+                for perm in role.permissions:
+                    if isinstance(perm, str):
+                        user_permissions.add(perm)
 
         # Wildcard permission grants all access
         if "*" in user_permissions:
             return current_user
 
         # Check if user has all required permissions
-        for permission in permissions:
+        for permission in flat_permissions:
             # Check exact match or category wildcard (e.g., "documents:*")
             has_permission = (
                 permission in user_permissions or
@@ -144,8 +154,16 @@ def require_permissions(*permissions: str):
     return permission_checker
 
 
-def require_any_permission(*permissions: str):
+def require_any_permission(*permissions):
     """Dependency to check if user has at least one of the required permissions."""
+    # Flatten if a list was passed
+    flat_permissions = []
+    for p in permissions:
+        if isinstance(p, list):
+            flat_permissions.extend(p)
+        else:
+            flat_permissions.append(p)
+    
     async def permission_checker(
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -155,7 +173,9 @@ def require_any_permission(*permissions: str):
         # Gather permissions from all user roles
         for role in current_user.roles:
             if role.permissions:
-                user_permissions.update(role.permissions)
+                for perm in role.permissions:
+                    if isinstance(perm, str):
+                        user_permissions.add(perm)
 
         # Wildcard permission grants all access
         if "*" in user_permissions:
@@ -163,7 +183,7 @@ def require_any_permission(*permissions: str):
 
         # Check if user has any of the required permissions
         has_any = False
-        for p in permissions:
+        for p in flat_permissions:
             if p in user_permissions or f"{p.split(':')[0]}:*" in user_permissions:
                 has_any = True
                 break

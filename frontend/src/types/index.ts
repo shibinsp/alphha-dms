@@ -77,6 +77,8 @@ export interface Document {
   document_type?: DocumentType
   folder?: Folder
   department?: Department
+  is_owner?: boolean
+  user_permission?: string
 }
 
 export interface DocumentType {
@@ -115,9 +117,15 @@ export interface DocumentVersion {
   file_size: number
   checksum_sha256: string
   change_reason?: string
+  metadata_snapshot?: Record<string, any>
   is_current: boolean
   created_by: string
   created_at: string
+  creator?: {
+    id: string
+    email: string
+    full_name?: string
+  }
 }
 
 // API response types

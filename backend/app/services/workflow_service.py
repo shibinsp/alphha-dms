@@ -21,12 +21,14 @@ from app.schemas.workflow import (
     SubmitApprovalRequest,
 )
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 
 
 class WorkflowService:
     def __init__(self, db: Session):
         self.db = db
         self.audit_service = AuditService(db)
+        self.notification_service = NotificationService(db)
 
     # Workflow Template CRUD
     def create_workflow(
@@ -188,14 +190,6 @@ class WorkflowService:
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Verify workflow exists
-        workflow = self.get_workflow(data.workflow_id, tenant_id)
-        if not workflow:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-
-        if not workflow.is_active:
-            raise HTTPException(status_code=400, detail="Workflow is not active")
-
         # Check for existing pending request
         existing = (
             self.db.query(ApprovalRequest)
@@ -210,6 +204,54 @@ class WorkflowService:
                 status_code=400,
                 detail="Document already has a pending approval request",
             )
+
+        # Get or create default workflow
+        workflow = None
+        if data.workflow_id:
+            workflow = self.get_workflow(data.workflow_id, tenant_id)
+            if not workflow:
+                raise HTTPException(status_code=404, detail="Workflow not found")
+            if not workflow.is_active:
+                raise HTTPException(status_code=400, detail="Workflow is not active")
+        else:
+            # Find or create default workflow for this document type
+            workflow = (
+                self.db.query(ApprovalWorkflow)
+                .filter(
+                    ApprovalWorkflow.tenant_id == tenant_id,
+                    ApprovalWorkflow.is_active == True,
+                )
+                .first()
+            )
+            if not workflow:
+                # Create a default workflow
+                workflow = ApprovalWorkflow(
+                    tenant_id=tenant_id,
+                    name="Default Approval",
+                    description="Default single-step approval workflow",
+                    workflow_type=WorkflowType.SEQUENTIAL,
+                    is_active=True,
+                    created_by=user_id,
+                )
+                self.db.add(workflow)
+                self.db.flush()
+                
+                # Create a single step - any manager can approve
+                from app.models import Role
+                manager_role = self.db.query(Role).filter(
+                    Role.tenant_id == tenant_id,
+                    Role.name == "manager"
+                ).first()
+                
+                step = ApprovalStep(
+                    workflow_id=workflow.id,
+                    step_order=1,
+                    name="Manager Approval",
+                    description="Requires manager approval",
+                    approver_role_id=manager_role.id if manager_role else None,
+                    required_approvals=1,
+                )
+                self.db.add(step)
 
         # Create approval request
         request = ApprovalRequest(
@@ -241,6 +283,67 @@ class WorkflowService:
             },
         )
 
+        # Notify approvers
+        from app.models import User, Role
+        from app.models.user import user_roles
+        requester = self.db.query(User).filter(User.id == user_id).first()
+        requester_name = requester.full_name or requester.email if requester else "Someone"
+        
+        notified_users = set()
+        
+        for step in workflow.steps:
+            if step.approver_user_id:
+                if step.approver_user_id not in notified_users:
+                    self.notification_service.notify_approval_requested(
+                        tenant_id=tenant_id,
+                        approver_id=step.approver_user_id,
+                        document_id=document_id,
+                        document_title=document.title,
+                        requester=requester_name
+                    )
+                    notified_users.add(step.approver_user_id)
+            elif step.approver_role_id:
+                # Notify all users with this role
+                users_with_role = self.db.query(User).join(
+                    user_roles, User.id == user_roles.c.user_id
+                ).filter(
+                    user_roles.c.role_id == step.approver_role_id,
+                    User.tenant_id == tenant_id
+                ).all()
+                for approver in users_with_role:
+                    if approver.id not in notified_users:
+                        self.notification_service.notify_approval_requested(
+                            tenant_id=tenant_id,
+                            approver_id=approver.id,
+                            document_id=document_id,
+                            document_title=document.title,
+                            requester=requester_name
+                        )
+                        notified_users.add(approver.id)
+        
+        # Also notify admins/super_admins
+        admin_roles = self.db.query(Role).filter(
+            Role.tenant_id == tenant_id,
+            Role.name.in_(['admin', 'super_admin'])
+        ).all()
+        for role in admin_roles:
+            admins = self.db.query(User).join(
+                user_roles, User.id == user_roles.c.user_id
+            ).filter(
+                user_roles.c.role_id == role.id,
+                User.tenant_id == tenant_id
+            ).all()
+            for admin in admins:
+                if admin.id not in notified_users and admin.id != user_id:
+                    self.notification_service.notify_approval_requested(
+                        tenant_id=tenant_id,
+                        approver_id=admin.id,
+                        document_id=document_id,
+                        document_title=document.title,
+                        requester=requester_name
+                    )
+                    notified_users.add(admin.id)
+
         return request
 
     def get_approval_request(
@@ -263,9 +366,20 @@ class WorkflowService:
         role_ids: List[str],
     ) -> List[ApprovalRequest]:
         """Get approval requests pending for a user based on current step"""
+        from app.models import Role
+        
+        # Check if user has manager or admin role
+        user_roles = self.db.query(Role).filter(Role.id.in_(role_ids)).all() if role_ids else []
+        role_names = [r.name for r in user_roles]
+        is_manager_or_admin = any(r in ['manager', 'admin', 'super_admin'] for r in role_names)
+        
         requests = (
             self.db.query(ApprovalRequest)
             .join(ApprovalWorkflow)
+            .options(
+                joinedload(ApprovalRequest.workflow),
+                joinedload(ApprovalRequest.document)
+            )
             .filter(
                 ApprovalRequest.tenant_id == tenant_id,
                 ApprovalRequest.status == ApprovalStatus.PENDING,
@@ -275,8 +389,11 @@ class WorkflowService:
 
         pending_for_user = []
         for request in requests:
-            workflow = self.get_workflow(request.workflow_id, tenant_id)
-            if not workflow:
+            workflow = request.workflow
+            if not workflow or not workflow.steps:
+                # If no workflow steps defined, managers/admins can approve
+                if is_manager_or_admin:
+                    pending_for_user.append(request)
                 continue
 
             # Find current step
@@ -287,14 +404,20 @@ class WorkflowService:
                     break
 
             if not current_step:
+                # No step defined, managers/admins can approve
+                if is_manager_or_admin:
+                    pending_for_user.append(request)
                 continue
 
             # Check if user can approve this step
             can_approve = False
             if current_step.approver_user_id == user_id:
                 can_approve = True
-            elif current_step.approver_role_id in role_ids:
+            elif current_step.approver_role_id and current_step.approver_role_id in role_ids:
                 can_approve = True
+            elif not current_step.approver_user_id and not current_step.approver_role_id:
+                # No specific approver set, managers/admins can approve
+                can_approve = is_manager_or_admin
 
             if can_approve:
                 pending_for_user.append(request)
@@ -372,6 +495,21 @@ class WorkflowService:
             },
         )
 
+        # Notify requester if final approval
+        if request.status == ApprovalStatus.APPROVED:
+            document = self.db.query(Document).filter(Document.id == request.document_id).first()
+            from app.models import User
+            approver = self.db.query(User).filter(User.id == user_id).first()
+            approver_name = approver.full_name or approver.email if approver else "Someone"
+            if document:
+                self.notification_service.notify_document_approved(
+                    tenant_id=tenant_id,
+                    user_id=request.requested_by,
+                    document_id=request.document_id,
+                    document_title=document.title,
+                    approver=approver_name
+                )
+
         return request
 
     def reject(
@@ -410,10 +548,42 @@ class WorkflowService:
         request.final_decision_by = user_id
         request.final_comments = comments
 
-        # Return document to DRAFT
+        # Return document to DRAFT and create new version for revision
         document = self.db.query(Document).filter(Document.id == request.document_id).first()
         if document:
+            old_status = document.lifecycle_status.value
             document.lifecycle_status = LifecycleStatus.DRAFT
+            
+            # Create new version for revision
+            from app.models import DocumentVersion
+            import uuid
+            
+            max_version = self.db.query(DocumentVersion).filter(
+                DocumentVersion.document_id == document.id
+            ).order_by(DocumentVersion.version_number.desc()).first()
+            
+            new_version_num = (max_version.version_number + 1) if max_version else 1
+            
+            # Mark previous versions as not current
+            self.db.query(DocumentVersion).filter(
+                DocumentVersion.document_id == document.id
+            ).update({"is_current": False})
+            
+            # Create revision version
+            new_version = DocumentVersion(
+                id=str(uuid.uuid4()),
+                document_id=document.id,
+                version_number=new_version_num,
+                file_path=document.file_path,
+                file_size=document.file_size,
+                checksum_sha256=document.checksum_sha256,
+                metadata_snapshot={"status_before": old_status, "rejection_reason": comments},
+                change_reason=f"Sent back for revision: {comments or 'No reason provided'}",
+                is_current=True,
+                created_by=user_id
+            )
+            self.db.add(new_version)
+            document.current_version_id = new_version.id
 
         self.db.commit()
         self.db.refresh(request)
@@ -429,6 +599,20 @@ class WorkflowService:
                 "comments": comments,
             },
         )
+
+        # Notify requester
+        from app.models import User
+        rejector = self.db.query(User).filter(User.id == user_id).first()
+        rejector_name = rejector.full_name or rejector.email if rejector else "Someone"
+        if document:
+            self.notification_service.notify_document_rejected(
+                tenant_id=tenant_id,
+                user_id=request.requested_by,
+                document_id=request.document_id,
+                document_title=document.title,
+                rejector=rejector_name,
+                reason=comments
+            )
 
         return request
 

@@ -4,6 +4,7 @@ import {
   FileTextOutlined, DownloadOutlined, FullscreenOutlined,
   ZoomInOutlined, ZoomOutOutlined
 } from '@ant-design/icons';
+import api from '@/services/api';
 
 interface DocumentViewerProps {
   documentId: string;
@@ -27,24 +28,69 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
-  const [currentPage] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
-
-  const previewUrl = `/api/v1/documents/${documentId}/preview`;
-  const downloadUrl = `/api/v1/documents/${documentId}/download`;
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [textContent, setTextContent] = useState<string | null>(null);
 
   const isImage = mimeType?.startsWith('image/');
   const isPdf = mimeType === 'application/pdf';
-  const isOffice = mimeType?.includes('word') || mimeType?.includes('excel') || mimeType?.includes('spreadsheet');
+  const isText = mimeType?.startsWith('text/') || 
+    ['application/json', 'application/xml', 'application/javascript'].includes(mimeType);
 
   useEffect(() => {
-    if (open) {
+    let currentBlobUrl: string | null = null;
+    
+    if (open && documentId) {
       setLoading(true);
       setError(null);
-      // Simulate loading
-      setTimeout(() => setLoading(false), 500);
+      setBlobUrl(null);
+      setTextContent(null);
+      
+      // Fetch document with auth
+      api.get(`/documents/${documentId}/preview`, { responseType: 'blob' })
+        .then(async response => {
+          // Check if response is actually an error (JSON instead of file)
+          if (response.data.type === 'application/json') {
+            const text = await response.data.text();
+            const err = JSON.parse(text);
+            throw new Error(err.detail || 'Failed to load document');
+          }
+          
+          // For text files, read the content as text
+          if (isText) {
+            const text = await response.data.text();
+            setTextContent(text);
+          }
+          
+          currentBlobUrl = URL.createObjectURL(response.data);
+          setBlobUrl(currentBlobUrl);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error('Preview error:', err);
+          setError(err.message || 'Failed to load document');
+          setLoading(false);
+        });
     }
-  }, [open, documentId]);
+    
+    return () => {
+      if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+    };
+  }, [open, documentId, isText]);
+
+  const handleDownload = async () => {
+    try {
+      const response = await api.get(`/documents/${documentId}/download`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  };
 
   const handleZoomIn = () => setZoom(Math.min(zoom + 25, 200));
   const handleZoomOut = () => setZoom(Math.max(zoom - 25, 50));
@@ -58,23 +104,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       );
     }
 
-    if (error) {
-      return <Alert type="error" message={error} />;
+    if (error || !blobUrl) {
+      return <Alert type="error" message={error || 'Failed to load document'} />;
     }
 
     if (isImage) {
       return (
         <div style={{ textAlign: 'center', overflow: 'auto', maxHeight: 600 }}>
           <img
-            src={previewUrl}
+            src={blobUrl}
             alt={fileName}
             style={{
               maxWidth: '100%',
               transform: `scale(${zoom / 100})`,
               transformOrigin: 'top center',
-              transition: 'transform 0.2s'
             }}
-            onError={() => setError('Failed to load image')}
           />
         </div>
       );
@@ -83,7 +127,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (isPdf) {
       return (
         <iframe
-          src={`${previewUrl}#zoom=${zoom}&page=${currentPage}`}
+          src={blobUrl}
           style={{
             width: '100%',
             height: fullscreen ? '90vh' : 600,
@@ -95,24 +139,16 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       );
     }
 
-    if (isOffice) {
-      // Use Microsoft Office Online viewer for Office documents
-      const encodedUrl = encodeURIComponent(window.location.origin + previewUrl);
+    if (isText && textContent) {
       return (
-        <iframe
-          src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodedUrl}`}
-          style={{
-            width: '100%',
-            height: fullscreen ? '90vh' : 600,
-            border: 'none',
-            borderRadius: 8
-          }}
-          title={fileName}
-        />
+        <Card style={{ maxHeight: 600, overflow: 'auto' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5 }}>
+            {textContent}
+          </pre>
+        </Card>
       );
     }
 
-    // Fallback for other types - show OCR text
     return (
       <Card style={{ maxHeight: 600, overflow: 'auto' }}>
         <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
@@ -156,41 +192,31 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             {entities.names?.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <strong>Names:</strong>{' '}
-                {entities.names.map((n: string, i: number) => (
-                  <Tag key={i} color="purple">{n}</Tag>
-                ))}
+                {entities.names.map((n: string, i: number) => <Tag key={i} color="purple">{n}</Tag>)}
               </div>
             )}
             {entities.dates?.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <strong>Dates:</strong>{' '}
-                {entities.dates.map((d: string, i: number) => (
-                  <Tag key={i} color="cyan">{d}</Tag>
-                ))}
+                {entities.dates.map((d: string, i: number) => <Tag key={i} color="cyan">{d}</Tag>)}
               </div>
             )}
             {entities.amounts?.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <strong>Amounts:</strong>{' '}
-                {entities.amounts.map((a: string, i: number) => (
-                  <Tag key={i} color="green">{a}</Tag>
-                ))}
+                {entities.amounts.map((a: string, i: number) => <Tag key={i} color="green">{a}</Tag>)}
               </div>
             )}
             {entities.organizations?.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <strong>Organizations:</strong>{' '}
-                {entities.organizations.map((o: string, i: number) => (
-                  <Tag key={i} color="orange">{o}</Tag>
-                ))}
+                {entities.organizations.map((o: string, i: number) => <Tag key={i} color="orange">{o}</Tag>)}
               </div>
             )}
             {entities.id_numbers?.length > 0 && (
               <div style={{ marginBottom: 8 }}>
                 <strong>ID Numbers:</strong>{' '}
-                {entities.id_numbers.map((id: string, i: number) => (
-                  <Tag key={i} color="red">{id}</Tag>
-                ))}
+                {entities.id_numbers.map((id: string, i: number) => <Tag key={i} color="red">{id}</Tag>)}
               </div>
             )}
           </Card>
@@ -202,13 +228,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               {metadata.title && <Descriptions.Item label="Title">{metadata.title}</Descriptions.Item>}
               {metadata.author && <Descriptions.Item label="Author">{metadata.author}</Descriptions.Item>}
               {metadata.subject && <Descriptions.Item label="Subject">{metadata.subject}</Descriptions.Item>}
-              {metadata.keywords?.length > 0 && (
-                <Descriptions.Item label="Keywords">
-                  {metadata.keywords.map((k: string, i: number) => (
-                    <Tag key={i}>{k}</Tag>
-                  ))}
-                </Descriptions.Item>
-              )}
             </Descriptions>
           </Card>
         )}
@@ -217,6 +236,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   };
 
   const renderOcrText = () => {
+    // For text files, show the actual content
+    if (isText && textContent) {
+      return (
+        <Card style={{ maxHeight: 600, overflow: 'auto' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5 }}>
+            {textContent}
+          </pre>
+        </Card>
+      );
+    }
+    
     if (!ocrText) {
       return <Alert type="info" message="No OCR text available" />;
     }
@@ -232,12 +262,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   return (
     <Modal
-      title={
-        <Space>
-          <FileTextOutlined />
-          {fileName}
-        </Space>
-      }
+      title={<Space><FileTextOutlined />{fileName}</Space>}
       open={open}
       onCancel={onClose}
       width={fullscreen ? '95vw' : 900}
@@ -252,17 +277,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             <Button icon={<ZoomInOutlined />} onClick={handleZoomIn} disabled={zoom >= 200} />
           </Tooltip>
           <Tooltip title="Fullscreen">
-            <Button
-              icon={<FullscreenOutlined />}
-              onClick={() => setFullscreen(!fullscreen)}
-            />
+            <Button icon={<FullscreenOutlined />} onClick={() => setFullscreen(!fullscreen)} />
           </Tooltip>
-          <Button
-            type="primary"
-            icon={<DownloadOutlined />}
-            href={downloadUrl}
-            target="_blank"
-          >
+          <Button type="primary" icon={<DownloadOutlined />} onClick={handleDownload}>
             Download
           </Button>
         </Space>
@@ -270,21 +287,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     >
       <Tabs
         items={[
-          {
-            key: 'preview',
-            label: 'Preview',
-            children: renderViewer()
-          },
-          {
-            key: 'metadata',
-            label: 'Extracted Data',
-            children: renderMetadata()
-          },
-          {
-            key: 'ocr',
-            label: 'OCR Text',
-            children: renderOcrText()
-          }
+          { key: 'preview', label: 'Preview', children: renderViewer() },
+          { key: 'metadata', label: 'Extracted Data', children: renderMetadata() },
+          { key: 'ocr', label: 'OCR Text', children: renderOcrText() }
         ]}
       />
     </Modal>

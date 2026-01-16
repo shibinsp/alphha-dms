@@ -118,6 +118,24 @@ class ApprovalRequestCreate(ApprovalRequestBase):
     pass
 
 
+class DocumentSummary(BaseModel):
+    id: str
+    title: str
+    file_name: str
+
+    class Config:
+        from_attributes = True
+
+
+class WorkflowSummary(BaseModel):
+    id: str
+    name: str
+    workflow_type: str
+
+    class Config:
+        from_attributes = True
+
+
 class ApprovalRequestResponse(ApprovalRequestBase):
     id: str
     tenant_id: str
@@ -131,6 +149,8 @@ class ApprovalRequestResponse(ApprovalRequestBase):
     created_at: datetime
     updated_at: datetime
     actions: List[ApprovalActionResponse] = []
+    document: Optional[DocumentSummary] = None
+    workflow: Optional[WorkflowSummary] = None
 
     class Config:
         from_attributes = True
@@ -138,9 +158,10 @@ class ApprovalRequestResponse(ApprovalRequestBase):
 
 # Action Input Schemas
 class SubmitApprovalRequest(BaseModel):
-    workflow_id: str
+    workflow_id: Optional[str] = None
     priority: str = "NORMAL"
     deadline: Optional[datetime] = None
+    comments: Optional[str] = None
 
 
 class ApproveRejectRequest(BaseModel):

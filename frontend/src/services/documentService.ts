@@ -82,10 +82,22 @@ export const documentService = {
     return response.data
   },
 
+  async triggerOCR(id: string): Promise<{ message: string; status: string }> {
+    const response = await api.post(`/documents/${id}/ocr`)
+    return response.data
+  },
+
   async transitionDocument(id: string, toStatus: LifecycleStatus, reason?: string): Promise<Document> {
     const response = await api.post<Document>(`/documents/${id}/transition`, {
       to_status: toStatus,
       reason,
+    })
+    return response.data
+  },
+
+  async submitForApproval(documentId: string, comments?: string): Promise<unknown> {
+    const response = await api.post(`/workflows/documents/${documentId}/submit`, {
+      comments,
     })
     return response.data
   },

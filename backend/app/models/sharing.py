@@ -113,3 +113,49 @@ class ShareLinkAccess(Base):
 
     # Relationships
     share_link = relationship("ShareLink", backref="accesses")
+
+
+class AccessRequestStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    REASON_REQUESTED = "REASON_REQUESTED"
+
+
+class RequestedPermission(str, enum.Enum):
+    VIEW = "VIEW"
+    EDIT = "EDIT"
+    DOWNLOAD = "DOWNLOAD"
+
+
+class AccessRequest(Base):
+    """Document access requests"""
+    __tablename__ = "access_requests"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    document_id = Column(String(36), ForeignKey("documents.id"), nullable=False, index=True)
+    tenant_id = Column(String(36), ForeignKey("tenants.id"), nullable=False, index=True)
+
+    # Requester
+    requester_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    requested_permission = Column(Enum(RequestedPermission), nullable=False)
+    reason = Column(Text, nullable=True)
+
+    # Status
+    status = Column(Enum(AccessRequestStatus), default=AccessRequestStatus.PENDING)
+
+    # Owner response
+    owner_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    granted_permission = Column(Enum(PermissionLevel), nullable=True)
+    owner_comment = Column(Text, nullable=True)
+    responded_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    document = relationship("Document", backref="access_requests")
+    tenant = relationship("Tenant", backref="access_requests")
+    requester = relationship("User", foreign_keys=[requester_id], backref="sent_access_requests")
+    owner = relationship("User", foreign_keys=[owner_id], backref="received_access_requests")

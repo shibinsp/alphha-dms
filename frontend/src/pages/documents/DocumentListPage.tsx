@@ -10,8 +10,8 @@ import {
   Tag,
   Typography,
   Dropdown,
-  message,
   Tooltip,
+  App,
 } from 'antd'
 import {
   PlusOutlined,
@@ -21,12 +21,14 @@ import {
   DeleteOutlined,
   MoreOutlined,
   FilterOutlined,
+  SendOutlined,
 } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnsType } from 'antd/es/table'
 import { documentService, DocumentFilters } from '@/services/documentService'
 import type { Document, SourceType, LifecycleStatus } from '@/types'
 import dayjs from 'dayjs'
+import { useAuthStore } from '@/store/authStore'
 
 const { Title } = Typography
 const { Option } = Select
@@ -34,6 +36,14 @@ const { Option } = Select
 const DocumentListPage: React.FC = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+  const { message } = App.useApp()
+  
+  // Check if user can create documents
+  const canCreate = useMemo(() => {
+    if (!user?.roles) return false
+    return user.roles.some(r => r.permissions.includes('documents.create'))
+  }, [user])
 
   const [filters, setFilters] = useState<DocumentFilters>({
     page: 1,
@@ -61,6 +71,18 @@ const DocumentListPage: React.FC = () => {
     },
     onError: () => {
       message.error('Failed to delete document')
+    },
+  })
+
+  // Submit for approval mutation
+  const submitMutation = useMutation({
+    mutationFn: (docId: string) => documentService.submitForApproval(docId),
+    onSuccess: () => {
+      message.success('Document submitted for review')
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+    },
+    onError: () => {
+      message.error('Failed to submit for review')
     },
   })
 
@@ -172,8 +194,14 @@ const DocumentListPage: React.FC = () => {
                 label: 'Download',
                 onClick: () => handleDownload(record),
               },
+              ...(record.lifecycle_status === 'DRAFT' ? [{
+                key: 'submit',
+                icon: <SendOutlined />,
+                label: 'Submit for Review',
+                onClick: () => submitMutation.mutate(record.id),
+              }] : []),
               {
-                type: 'divider',
+                type: 'divider' as const,
               },
               {
                 key: 'delete',
@@ -191,7 +219,7 @@ const DocumentListPage: React.FC = () => {
         </Dropdown>
       ),
     },
-  ], [navigate, handleDownload, deleteMutation])
+  ], [navigate, handleDownload, deleteMutation, submitMutation])
 
   return (
     <div>
@@ -203,6 +231,7 @@ const DocumentListPage: React.FC = () => {
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => navigate('/documents/upload')}
+          style={{ display: canCreate ? 'inline-flex' : 'none' }}
         >
           Upload Document
         </Button>

@@ -6,7 +6,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.db.session import SessionLocal
+from app.core.database import SessionLocal
 from app.services.license_service import LicenseService
 
 

@@ -142,6 +142,8 @@ class DocumentResponse(BaseModel):
     is_worm_locked: bool
     legal_hold: bool
     ocr_status: OCRStatus
+    ocr_text: Optional[str] = None
+    extracted_metadata: Optional[Dict[str, Any]] = None
     custom_metadata: Dict[str, Any]
     tenant_id: str
     created_by: str
@@ -166,6 +168,15 @@ class DocumentListResponse(BaseModel):
 
 
 # Version schemas
+class VersionCreatorInfo(BaseModel):
+    id: str
+    email: str
+    full_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class VersionResponse(BaseModel):
     id: str
     document_id: str
@@ -173,9 +184,11 @@ class VersionResponse(BaseModel):
     file_size: int
     checksum_sha256: str
     change_reason: Optional[str]
+    metadata_snapshot: Optional[dict] = None
     is_current: bool
     created_by: str
     created_at: datetime
+    creator: Optional[VersionCreatorInfo] = None
 
     class Config:
         from_attributes = True

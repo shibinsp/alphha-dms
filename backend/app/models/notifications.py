@@ -31,6 +31,11 @@ class NotificationType(str, enum.Enum):
     APPROVAL_REMINDER = "approval_reminder"
     WORKFLOW_COMPLETED = "workflow_completed"
 
+    # Access request events
+    ACCESS_REQUESTED = "access_requested"
+    ACCESS_APPROVED = "access_approved"
+    ACCESS_REJECTED = "access_rejected"
+
     # System events
     PII_DETECTED = "pii_detected"
     LEGAL_HOLD_APPLIED = "legal_hold_applied"

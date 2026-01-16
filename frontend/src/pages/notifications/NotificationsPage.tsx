@@ -158,6 +158,10 @@ const NotificationsPage: React.FC = () => {
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markReadMutation.mutate(notification.id)
+      // Switch to "All" tab when marking a notification as read from "Unread" tab
+      if (activeTab === 'unread') {
+        setActiveTab('all')
+      }
     }
     if (notification.action_url) {
       navigate(notification.action_url)

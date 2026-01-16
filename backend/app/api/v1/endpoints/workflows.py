@@ -8,6 +8,7 @@ from app.api.v1.dependencies import (
     get_current_user,
     get_current_tenant_id,
     require_permissions,
+    require_any_permission,
 )
 from app.models.user import User
 from app.schemas.workflow import (
@@ -135,7 +136,7 @@ async def approve_request(
     request_id: str,
     data: ApproveRejectRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions(["documents:approve"])),
+    current_user: User = Depends(require_any_permission(["documents:approve", "workflows:approve", "approvals.approve"])),
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     """Approve an approval request"""
@@ -149,7 +150,7 @@ async def reject_request(
     request_id: str,
     data: ApproveRejectRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permissions(["documents:approve"])),
+    current_user: User = Depends(require_any_permission(["documents:approve", "workflows:approve", "approvals.approve"])),
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     """Reject an approval request"""

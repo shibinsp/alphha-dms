@@ -30,8 +30,10 @@ import {
   FolderOutlined,
   TableOutlined,
 } from '@ant-design/icons'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { authService } from '@/services/authService'
+import api from '@/services/api'
 
 const { Header, Sider, Content } = Layout
 
@@ -48,6 +50,16 @@ const MainLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout, refreshToken } = useAuthStore()
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => {
+      const { data } = await api.get('/notifications/unread-count')
+      return data
+    },
+    refetchInterval: 30000,
+  })
+  const unreadCount = unreadData?.unread_count || 0
   const { token } = theme.useToken()
 
   // Get user permissions from roles
@@ -136,8 +148,19 @@ const MainLayout: React.FC = () => {
 
     // Approvals - Admin, Manager
     if (canApprove) {
-      items.push({ key: '/approvals', icon: <AuditOutlined />, label: 'Approvals' });
+      items.push({
+        key: 'approvals-menu',
+        icon: <AuditOutlined />,
+        label: 'Document Approvals',
+        children: [
+          { key: '/approvals', label: 'Pending Approvals' },
+          { key: '/workflows', label: 'Workflows' },
+        ]
+      });
     }
+
+    // Access Requests - Everyone (for requesting access to restricted documents)
+    items.push({ key: '/access-requests', icon: <SafetyOutlined />, label: 'Access Requests' });
 
     // Compliance - Admin, Legal, Compliance
     if (canAccessCompliance) {
@@ -267,7 +290,7 @@ const MainLayout: React.FC = () => {
           {/* Right side */}
           <div className="flex items-center gap-4">
             {/* Notifications */}
-            <Badge count={5} size="small">
+            <Badge count={unreadCount} size="small">
               <Button
                 type="text"
                 icon={<BellOutlined style={{ fontSize: 18 }} />}

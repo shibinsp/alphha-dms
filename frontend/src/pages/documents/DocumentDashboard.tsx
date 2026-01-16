@@ -5,11 +5,13 @@ import {
 } from 'antd';
 import {
   SettingOutlined, SearchOutlined, DownloadOutlined,
-  EyeOutlined, FileTextOutlined, UserOutlined, ShopOutlined, BankOutlined
+  EyeOutlined, FileTextOutlined, UserOutlined, ShopOutlined, BankOutlined,
+  SendOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
+import { documentService } from '../../services/documentService';
 
 interface Document {
   id: string;
@@ -216,11 +218,21 @@ const DocumentDashboard: React.FC = () => {
   });
 
   // Actions column
+  const handleSubmitForReview = async (docId: string) => {
+    try {
+      await documentService.submitForApproval(docId);
+      message.success('Document submitted for review');
+      fetchDocuments();
+    } catch {
+      message.error('Failed to submit for review');
+    }
+  };
+
   const actionsColumn = {
     title: 'Actions',
     key: 'actions',
     fixed: 'right' as const,
-    width: 100,
+    width: 120,
     render: (_: any, record: Document) => (
       <Space>
         <Tooltip title="View">
@@ -233,6 +245,15 @@ const DocumentDashboard: React.FC = () => {
         <Tooltip title="Download">
           <Button type="link" icon={<DownloadOutlined />} />
         </Tooltip>
+        {record.lifecycle_status === 'DRAFT' && (
+          <Tooltip title="Submit for Review">
+            <Button
+              type="link"
+              icon={<SendOutlined />}
+              onClick={() => handleSubmitForReview(record.id)}
+            />
+          </Tooltip>
+        )}
       </Space>
     ),
   };
@@ -296,7 +317,7 @@ const DocumentDashboard: React.FC = () => {
             </Select>
             <Dropdown
               trigger={['click']}
-              dropdownRender={() => (
+              popupRender={() => (
                 <Card size="small" style={{ width: 250 }}>
                   <p style={{ fontWeight: 'bold', marginBottom: 8 }}>Visible Columns</p>
                   <Checkbox.Group

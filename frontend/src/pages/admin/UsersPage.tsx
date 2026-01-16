@@ -11,20 +11,29 @@ interface User {
   email: string
   full_name: string
   is_active: boolean
-  role?: { name: string }
-  department?: { name: string }
+  roles?: { name: string }[]
+  department?: string
   created_at: string
-  last_login_at?: string
+  last_login?: string
+}
+
+interface UsersResponse {
+  items: User[]
+  total: number
+  page: number
+  page_size: number
 }
 
 const UsersPage: React.FC = () => {
-  const { data: users, isLoading } = useQuery<User[]>({
-    queryKey: ['admin', 'users'],
+  const { data, isLoading } = useQuery<UsersResponse>({
+    queryKey: ['users'],
     queryFn: async () => {
-      const response = await api.get('/admin/users')
+      const response = await api.get('/users')
       return response.data
     },
   })
+
+  const users = data?.items || []
 
   const columns = [
     {
@@ -44,13 +53,13 @@ const UsersPage: React.FC = () => {
       title: 'Role',
       key: 'role',
       render: (_: any, record: User) => (
-        <Tag color="blue">{record.role?.name || 'No Role'}</Tag>
+        <Tag color="blue">{record.roles?.[0]?.name || 'No Role'}</Tag>
       ),
     },
     {
       title: 'Department',
       key: 'department',
-      render: (_: any, record: User) => record.department?.name || '-',
+      render: (_: any, record: User) => record.department || '-',
     },
     {
       title: 'Status',
@@ -64,8 +73,8 @@ const UsersPage: React.FC = () => {
     },
     {
       title: 'Last Login',
-      dataIndex: 'last_login_at',
-      key: 'last_login_at',
+      dataIndex: 'last_login',
+      key: 'last_login',
       render: (date: string) => date ? new Date(date).toLocaleString() : 'Never',
     },
     {

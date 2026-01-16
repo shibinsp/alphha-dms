@@ -49,7 +49,10 @@ from app.models.sharing import (
     ShareLink,
     ShareLinkAccess,
     PermissionLevel,
-    ShareLinkType
+    ShareLinkType,
+    AccessRequest,
+    AccessRequestStatus,
+    RequestedPermission
 )
 from app.models.taxonomy import (
     Tag,
@@ -110,6 +113,12 @@ from app.models.offline import (
     SyncOperation
 )
 from app.models.entities import Customer, Vendor, License
+from app.models.integration import (
+    APIKey,
+    Webhook,
+    ExternalIntegration,
+    IntegrationType
+)
 
 __all__ = [
     # Tenant
@@ -171,6 +180,9 @@ __all__ = [
     "ShareLinkAccess",
     "PermissionLevel",
     "ShareLinkType",
+    "AccessRequest",
+    "AccessRequestStatus",
+    "RequestedPermission",
     # Taxonomy
     "Tag",
     "DocumentTag",
@@ -226,4 +238,9 @@ __all__ = [
     "Customer",
     "Vendor",
     "License",
+    # Integration
+    "APIKey",
+    "Webhook",
+    "ExternalIntegration",
+    "IntegrationType",
 ]
