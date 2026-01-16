@@ -73,22 +73,16 @@ const MainLayout: React.FC = () => {
     return user.roles.map(r => r.name);
   }, [user]);
 
-  // Debug logging - remove in production
-  console.log('=== ROLE DEBUG ===');
-  console.log('User object:', user);
-  console.log('User email:', user?.email);
-  console.log('User roles array:', user?.roles);
-  console.log('Extracted role names:', userRoles);
-  console.log('Extracted permissions:', userPermissions);
-
   const isAdmin = userRoles.includes('super_admin') || userRoles.includes('admin');
   const isManager = userRoles.includes('manager');
   const isLegal = userRoles.includes('legal');
   const isCompliance = userRoles.includes('compliance');
   const isViewer = userRoles.includes('viewer');
 
-  console.log('isAdmin:', isAdmin, 'isManager:', isManager);
-  console.log('=== END DEBUG ===');
+  // Debug log for role-based access
+  if (user) {
+    console.log('[RBAC]', user.email, '| Roles:', userRoles, '| isAdmin:', isAdmin, '| isManager:', isManager);
+  }
   const canManageDocuments = hasPermission(userPermissions, ['documents:create', 'documents:update']);
   const canViewAnalytics = hasPermission(userPermissions, ['analytics:view']) || isAdmin || isManager;
   const canApprove = hasPermission(userPermissions, ['workflows:approve']) || isAdmin || isManager;
